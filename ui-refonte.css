@@ -1,0 +1,24 @@
+/* Murim — refonte interface V4 */
+:root{--murim-border:#2b3b4c;--murim-gold:#e2bc72;--murim-muted:#91a0ad;--murim-shadow:0 18px 50px rgba(0,0,0,.28)}
+body{background:radial-gradient(ellipse at 50% -10%,#1c2a38 0,#0b1017 45%,#05080c 100%)!important;min-height:100vh}
+.wrap{max-width:1680px!important;padding:20px 24px!important}
+.top{position:sticky;top:0;z-index:20;background:rgba(7,11,16,.88);backdrop-filter:blur(12px);padding:10px 0 16px!important}
+.brand{font-size:31px!important;text-shadow:0 2px 20px rgba(226,188,114,.12)}
+.layout{grid-template-columns:330px minmax(560px,1fr) 360px!important;gap:18px!important;align-items:start}
+.panel{background:linear-gradient(160deg,rgba(18,28,39,.96),rgba(8,13,19,.98))!important;border-color:var(--murim-border)!important;box-shadow:var(--murim-shadow)}
+.layout>.panel{min-height:calc(100vh - 125px)}
+.stat{transition:transform .15s,border-color .15s,background .15s}.stat:hover{transform:translateY(-1px);border-color:#51657a;background:#0d151f}
+button{transition:transform .12s,box-shadow .12s,border-color .12s!important}button:hover{transform:translateY(-1px);box-shadow:0 7px 18px rgba(0,0,0,.2)}button:active{transform:translateY(0)}
+button.primary{background:linear-gradient(135deg,#765321,#523717)!important;border-color:#c0934f!important}
+.murim-toolbar{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 12px;padding:8px;border:1px solid var(--murim-border);border-radius:12px;background:rgba(7,12,18,.68)}
+.murim-toolbar button{font-size:12px;padding:7px 9px}.murim-toolbar .active{border-color:var(--murim-gold);color:var(--murim-gold)}
+.murim-status{margin-left:auto;color:var(--murim-muted);font-size:11px;align-self:center}
+.murim-panel-collapsed{display:none!important}.murim-collapse{float:right;padding:4px 7px;font-size:11px}
+.murim-hero{display:grid;grid-template-columns:118px 1fr;gap:16px;align-items:center;padding:14px;border:1px solid var(--murim-border);border-radius:14px;background:linear-gradient(135deg,rgba(226,188,114,.07),transparent);margin-bottom:12px}
+.murim-hero .portrait,.murim-hero .murimPortrait{width:118px;height:142px;border-radius:12px}.murim-hero-title{font-size:22px;color:#f0d49a}.murim-hero-sub{color:var(--murim-muted);font-size:12px;margin-top:4px}
+.murim-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:12px}.murim-kpi{padding:8px;border:1px solid var(--murim-border);border-radius:9px;background:#0a1118}.murim-kpi b{display:block;color:var(--murim-gold);font-size:16px}
+.murimPortraitPending{background:radial-gradient(circle at 50% 35%,#273747,#0a1118)!important}.murimPortraitPendingIcon{animation:murimPulse 1.8s infinite}@keyframes murimPulse{50%{opacity:.35;transform:scale(.9)}}
+.murim-section-nav{display:flex;gap:6px;overflow:auto;margin-bottom:10px}.murim-section-nav button{white-space:nowrap}
+.murim-focus main.panel{box-shadow:0 0 0 1px rgba(226,188,114,.18),0 25px 70px rgba(0,0,0,.4)}
+@media(max-width:1250px){.layout{grid-template-columns:290px minmax(480px,1fr)!important}.layout>aside:last-child{grid-column:1/-1;min-height:auto}.murim-kpis{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){.wrap{padding:10px!important}.layout{grid-template-columns:1fr!important}.layout>.panel{min-height:auto}.murim-hero{grid-template-columns:90px 1fr}.murim-hero .murimPortrait{width:90px;height:108px}.murim-kpis{grid-template-columns:1fr 1fr}}
