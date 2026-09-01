@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "principle": "no_mandatory_quests",
+  "training_is_player_chosen": true,
+  "ordinary_body_probability": 0.95,
+  "constitution_sources": ["birth", "divine_manual_extremely_rare"],
+  "factors": ["time", "method", "teacher", "comprehension", "talent", "constitution", "meridians", "recovery", "health", "mental_state", "environment"],
+  "risks": ["fatigue", "injury", "stagnation", "meridian_damage", "qi_deviation", "mental_exhaustion"],
+  "rule": "more_training_can_make_you_stronger_but_quality_and_recovery_matter",
+  "age_gate": {"structured_martial_training_months": 36},
+  "actions": ["train", "study", "observe", "rest", "work", "travel", "socialize", "do_nothing"],
+  "discovery": "knowledge_is_not_granted_without_an_observation_or_learning_action"
+}
