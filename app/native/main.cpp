@@ -75,7 +75,7 @@ void render(HWND hwnd) {
     EnableWindow(GetDlgItem(hwnd, ID_SAVE), state.started);
 }
 
-void newLife() {
+void newLife(HWND hwnd) {
     std::random_device rd;
     state = GameState{};
     state.started = true;
@@ -89,14 +89,14 @@ void newLife() {
     logLine(L"Une nouvelle vie commence.");
     logLine(L"Tu es né dans un petit village du Jianghu.");
     logLine(L"Ton corps et ton esprit ne révèlent encore rien d'exceptionnel.");
-    render(GetParent(hStatus));
+    render(hwnd);
 }
 
 void advanceTime(HWND hwnd) {
     if (!state.started) return;
-    int days = state.ageMonths < 12 ? 30 : 30;
+    constexpr int daysPerMonth = 30;
     state.ageMonths += 1;
-    state.world.advance_days(days);
+    state.world.advance_days(daysPerMonth);
     if (state.ageMonths == 1) logLine(L"Un mois passe. Ta famille veille sur toi.");
     else if (state.ageMonths == 12) logLine(L"Une année s'est écoulée. Tu commences à mieux observer le monde.");
     else if (state.ageMonths < 24) logLine(L"Le temps passe. Tu restes dépendant des adultes.");
@@ -140,11 +140,11 @@ void loadGame(HWND hwnd) {
 }
 
 void toggleFullscreen(HWND hwnd) {
-    static bool full = false; static WINDOWPLACEMENT wp{sizeof(wp)}; static DWORD style = 0;
+    static bool full = false; static WINDOWPLACEMENT wp{sizeof(wp)}; static LONG style = 0;
     if (!full) {
         style = GetWindowLongW(hwnd, GWL_STYLE);
         if (GetWindowPlacement(hwnd, &wp) && (style & WS_OVERLAPPEDWINDOW)) {
-            MONITORINFO mi{sizeof(mi)}; if (GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTT), &mi)) {
+            MONITORINFO mi{sizeof(mi)}; if (GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &mi)) {
                 SetWindowLongW(hwnd, GWL_STYLE, style & ~WS_OVERLAPPEDWINDOW);
                 SetWindowPos(hwnd, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top,
                     mi.rcMonitor.right-mi.rcMonitor.left, mi.rcMonitor.bottom-mi.rcMonitor.top,
@@ -168,11 +168,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         hStatus = CreateWindowW(L"STATIC", L"Murim — Les Mille Destins", WS_CHILD|WS_VISIBLE|SS_LEFT, 24, 24, 700, 230, hwnd, nullptr, nullptr, nullptr);
         hLog = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD|WS_VISIBLE|WS_VSCROLL|ES_MULTILINE|ES_READONLY, 24, 270, 700, 220, hwnd, nullptr, nullptr, nullptr);
         hName = CreateWindowW(L"STATIC", L"Chronique", WS_CHILD|WS_VISIBLE, 24, 500, 700, 28, hwnd, nullptr, nullptr, nullptr);
-        CreateWindowW(L"BUTTON", L"Nouvelle vie", WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON, 750, 30, 180, 44, hwnd, (HMENU)ID_NEW, nullptr, nullptr);
-        CreateWindowW(L"BUTTON", L"Avancer le temps", WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON, 750, 84, 180, 44, hwnd, (HMENU)ID_ADVANCE, nullptr, nullptr);
-        CreateWindowW(L"BUTTON", L"Sauvegarder", WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON, 750, 138, 180, 44, hwnd, (HMENU)ID_SAVE, nullptr, nullptr);
-        CreateWindowW(L"BUTTON", L"Charger", WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON, 750, 192, 180, 44, hwnd, (HMENU)ID_LOAD, nullptr, nullptr);
-        CreateWindowW(L"BUTTON", L"⛶ Plein écran", WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON, 750, 246, 180, 44, hwnd, (HMENU)ID_FULL, nullptr, nullptr);
+        CreateWindowW(L"BUTTON", L"Nouvelle vie", WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON, 750, 30, 180, 44, hwnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_NEW)), nullptr, nullptr);
+        CreateWindowW(L"BUTTON", L"Avancer le temps", WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON, 750, 84, 180, 44, hwnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_ADVANCE)), nullptr, nullptr);
+        CreateWindowW(L"BUTTON", L"Sauvegarder", WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON, 750, 138, 180, 44, hwnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_SAVE)), nullptr, nullptr);
+        CreateWindowW(L"BUTTON", L"Charger", WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON, 750, 192, 180, 44, hwnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_LOAD)), nullptr, nullptr);
+        CreateWindowW(L"BUTTON", L"⛶ Plein écran", WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON, 750, 246, 180, 44, hwnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(ID_FULL)), nullptr, nullptr);
         EnumChildWindows(hwnd, [](HWND c, LPARAM){ SendMessageW(c, WM_SETFONT, (WPARAM)hFont, TRUE); return TRUE; }, 0);
         SendMessageW(hName, WM_SETFONT, (WPARAM)hTitle, TRUE);
         render(hwnd);
@@ -180,7 +180,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     }
     case WM_COMMAND:
         switch (LOWORD(wParam)) {
-        case ID_NEW: newLife(); break;
+        case ID_NEW: newLife(hwnd); break;
         case ID_ADVANCE: advanceTime(hwnd); break;
         case ID_SAVE: saveGame(hwnd); break;
         case ID_LOAD: loadGame(hwnd); break;
@@ -192,7 +192,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         MoveWindow(hStatus, 24, 24, std::max(300, w-260), 230, TRUE);
         MoveWindow(hLog, 24, 270, std::max(300, w-260), std::max(120, h-310), TRUE);
         MoveWindow(hName, 24, h-30, std::max(300, w-260), 28, TRUE);
-        HWND b; for (int id : {ID_NEW,ID_ADVANCE,ID_SAVE,ID_LOAD,ID_FULL}) if ((b=GetDlgItem(hwnd,id))) MoveWindow(b,w-210,30+(id-ID_NEW)/1*54,180,44,TRUE);
+        HWND b; for (int i=0; i<5; ++i) { int id = ID_NEW+i; if ((b=GetDlgItem(hwnd,id))) MoveWindow(b,w-210,30+i*54,180,44,TRUE); }
         break;
     }
     case WM_DESTROY: PostQuitMessage(0); break;
