@@ -16,8 +16,7 @@ target_include_directories(Murim PRIVATE ../../engine)
 
 if (WIN32)
     target_compile_definitions(Murim PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
-    # main.cpp uses Win32 common dialogs and GDI+.
-    target_link_libraries(Murim PRIVATE user32 gdi32 shell32 comdlg32 gdiplus)
+    target_link_libraries(Murim PRIVATE user32 gdi32 shell32 gdiplus)
     if (MSVC)
         target_compile_options(Murim PRIVATE /W4 /GS /guard:cf /sdl)
         target_link_options(Murim PRIVATE /DYNAMICBASE /NXCOMPAT /GUARD:CF)
