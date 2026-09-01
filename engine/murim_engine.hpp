@@ -1,10 +1,23 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
+
 namespace murim {
-struct Person { std::uint64_t id{}; double age{}; std::string location; bool alive{true}; };
-struct Event { std::uint64_t day{}; std::string type; std::string location; };
+struct Person {
+  std::uint64_t id{};
+  double age{};
+  std::string location;
+  bool alive{true};
+};
+
+struct Event {
+  std::uint64_t day{};
+  std::string type;
+  std::string location;
+};
+
 class WorldEngine {
 public:
   explicit WorldEngine(std::uint64_t seed=318) : seed_(seed) {}
