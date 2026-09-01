@@ -1,0 +1,41 @@
+name: Build Murim Windows application
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/native/**'
+      - 'engine/**'
+      - '.github/workflows/build-native.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S app/native -B build/native -A x64
+      - name: Build
+        run: cmake --build build/native --config Release --parallel
+      - name: Smoke check
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'build/native/Release/Murim.exe')) { throw 'Murim.exe introuvable' }
+          $size = (Get-Item 'build/native/Release/Murim.exe').Length
+          if ($size -lt 10000) { throw 'Murim.exe semble invalide' }
+          Write-Host "Murim.exe OK - $size octets"
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item 'build/native/Release/Murim.exe' 'dist/Murim.exe'
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Murim-Windows-x64
+          path: dist/Murim.exe
