@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "design": "immersive_jianghu_rpg_simulation",
+  "principles": [
+    "player_is_an_ordinary_person_or_npc",
+    "no_forced_quests",
+    "world_progresses_without_player",
+    "discover_information_through_actions",
+    "rare_power_has_real_risks",
+    "load_heavy_assets_on_demand"
+  ],
+  "systems": {
+    "character": ["age", "body", "spirit", "qi", "constitution", "meridians", "traits", "skills", "titles"],
+    "simulation": ["time", "weather", "births", "deaths", "migration", "war", "economy", "factions", "rumors", "history"],
+    "training": ["free_training", "chosen_duration", "chosen_frequency", "quality", "talent", "teacher", "recovery", "fatigue", "injury", "stagnation", "deviation"],
+    "discovery": ["observe", "listen", "meet", "read", "study", "compare", "understand", "practice", "master"],
+    "knowledge": ["martial_manuals", "medicine", "alchemy", "cuisine", "monsters", "sects", "families", "ancient_sects", "history", "crafts"],
+    "martial": ["techniques", "qi_mutations", "meridian_mutations", "constitutions", "compatibility", "danger", "beginner_to_divine"],
+    "social": ["family", "friendship", "rivalry", "debt", "trust", "reputation", "memory", "marriage", "children", "succession"],
+    "world": ["regions", "roads", "travel_time", "villages", "cities", "sects", "great_families", "clans", "cults", "academies", "markets", "bandits", "monsters"],
+    "visuals": ["npc_portraits", "age_variants", "expressions", "scars", "clothing", "family_portraits", "faction_portraits", "location_art", "manual_art", "technique_art", "weapon_art"],
+    "ui": ["character_card", "chronicle", "world_panel", "relationship_panel", "map", "manual_viewer", "technique_viewer", "inventory", "fullscreen"],
+    "security": ["zero_trust_inputs", "quarantine", "hash_verification", "safe_saves", "signed_builds"]
+  },
+  "content_targets": {
+    "techniques": 5000,
+    "manuals": 5000,
+    "titles": 5000,
+    "npc_portraits_target": 10000
+  },
+  "portrait_policy": {
+    "source": "ai_generated_production_assets",
+    "identity_persistent": true,
+    "age_variant_required": true,
+    "load_policy": "lazy"
+  }
+}
