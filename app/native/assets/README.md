@@ -1,0 +1,1 @@
+Visuels locaux de l'application. Les illustrations générées sont chargées à la demande afin de ne pas ralentir le lancement.
