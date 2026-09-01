@@ -20,10 +20,13 @@ jobs:
         with:
           version: latest
           actions-cache-folder: 'emsdk-cache'
-      - name: Compile C/C++ engine to WASM
+      - name: Compile C core
         run: |
           mkdir -p dist
-          em++ engine/murim_wasm.cpp engine/murim_engine.cpp engine/murim_core.c \
+          emcc engine/murim_core.c -O3 -c -o dist/murim_core.o
+      - name: Compile C++ engine and link WASM
+        run: |
+          em++ engine/murim_wasm.cpp engine/murim_engine.cpp dist/murim_core.o \
             -O3 -s WASM=1 -s MODULARIZE=1 -s EXPORT_ES6=1 \
             -s EXPORTED_FUNCTIONS='["_murim_seed","_murim_roll"]' \
             -s EXPORTED_RUNTIME_METHODS='[]' \
