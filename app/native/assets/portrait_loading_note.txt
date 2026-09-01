@@ -1,0 +1,1 @@
+Portraits AI: production assets are loaded on demand by stable NPC id and age band.
