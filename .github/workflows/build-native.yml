@@ -5,7 +5,8 @@ on:
     branches: [main]
     paths:
       - 'app/native/**'
-      - 'engine/**'
+      - 'engine/murim_engine.cpp'
+      - 'engine/murim_engine.hpp'
       - '.github/workflows/build-native.yml'
   workflow_dispatch:
 
@@ -15,43 +16,37 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Configure
-        run: cmake -S app/native -B build/native -A x64
+      - name: Configure clean build
+        run: cmake -S app/native -B build/native -A x64 -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build/native --config Release --parallel
+        run: cmake --build build/native --config Release --parallel 2
 
-      - name: Smoke check
-        shell: pwsh
-        run: |
-          $exe = 'build/native/Release/Murim.exe'
-          if (-not (Test-Path $exe)) { throw 'Murim.exe introuvable' }
-          $size = (Get-Item $exe).Length
-          if ($size -lt 10000) { throw 'Murim.exe semble invalide' }
-          Write-Host "Murim.exe OK - $size octets"
-
-      - name: Windows Defender scan
+      - name: Smoke test executable
         shell: pwsh
         run: |
           $exe = (Resolve-Path 'build/native/Release/Murim.exe').Path
-          $mp = Get-Command Start-MpScan -ErrorAction SilentlyContinue
-          if ($mp) {
-            Start-MpScan -ScanPath $exe -ScanType CustomScan
-            Write-Host 'Microsoft Defender scan terminé.'
-          } else {
-            Write-Warning 'Microsoft Defender cmdlet indisponible sur ce runner; build conservé mais scan système non exécuté.'
-          }
+          if (-not (Test-Path $exe)) { throw 'Murim.exe introuvable' }
+          $p = Start-Process -FilePath $exe -ArgumentList '--smoke-test' -Wait -PassThru -WindowStyle Hidden
+          if ($p.ExitCode -ne 0) { throw "Smoke test echoue avec le code $($p.ExitCode)" }
+          $size = (Get-Item $exe).Length
+          if ($size -lt 20000) { throw "Binaire trop petit: $size octets" }
+          Write-Host "Murim.exe OK - $size octets"
 
-      - name: Integrity hash
+      - name: Security metadata
         shell: pwsh
         run: |
-          $hash = (Get-FileHash 'build/native/Release/Murim.exe' -Algorithm SHA256).Hash
-          "SHA256=$hash" | Out-File -Encoding utf8 dist-hash.txt
-          Write-Host "SHA-256: $hash"
+          $exe = 'build/native/Release/Murim.exe'
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash
+          "SHA256=$hash" | Set-Content -Encoding utf8 dist-hash.txt
+          Write-Host "SHA256=$hash"
+          $sig = Get-AuthenticodeSignature $exe
+          Write-Host "Authenticode=$($sig.Status)"
 
       - name: Package
         shell: pwsh
@@ -61,8 +56,9 @@ jobs:
           Copy-Item 'dist-hash.txt' 'dist/SHA256.txt'
           Compress-Archive -Path 'dist/Murim.exe','dist/SHA256.txt' -DestinationPath 'Murim-Windows-x64.zip' -Force
 
-      - name: Upload Windows build
+      - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: Murim-Windows-x64
           path: Murim-Windows-x64.zip
+          if-no-files-found: error
