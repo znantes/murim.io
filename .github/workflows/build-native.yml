@@ -7,6 +7,8 @@ on:
       - 'app/native/**'
       - 'engine/murim_engine.cpp'
       - 'engine/murim_engine.hpp'
+      - 'assets/**'
+      - 'data/**'
       - '.github/workflows/build-native.yml'
   workflow_dispatch:
 
@@ -38,6 +40,27 @@ jobs:
           if ($size -lt 20000) { throw "Binaire trop petit: $size octets" }
           Write-Host "Murim.exe OK - $size octets"
 
+      - name: Validate external content
+        shell: pwsh
+        run: |
+          $required = @(
+            'assets/portraits',
+            'assets/manuals',
+            'assets/techniques',
+            'assets/factions',
+            'assets/locations',
+            'assets/ui',
+            'data/techniques-5000.js',
+            'data/titles-5000.js',
+            'data/manuals-5000.js',
+            'data/portraits.json',
+            'data/external-content-manifest.json'
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path $path)) { throw "Ressource externe manquante: $path" }
+          }
+          Write-Host 'External content structure OK'
+
       - name: Security metadata
         shell: pwsh
         run: |
@@ -54,7 +77,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item 'build/native/Release/Murim.exe' 'dist/Murim.exe'
           Copy-Item 'dist-hash.txt' 'dist/SHA256.txt'
-          Compress-Archive -Path 'dist/Murim.exe','dist/SHA256.txt' -DestinationPath 'Murim-Windows-x64.zip' -Force
+          Copy-Item 'assets' 'dist/assets' -Recurse -Force
+          Copy-Item 'data' 'dist/data' -Recurse -Force
+          New-Item -ItemType Directory -Force -Path 'dist/saves' | Out-Null
+          New-Item -ItemType Directory -Force -Path 'dist/logs' | Out-Null
+          Compress-Archive -Path 'dist/*' -DestinationPath 'Murim-Windows-x64.zip' -Force
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v5
