@@ -6,7 +6,7 @@
 <title>Murim — Les Mille Destins</title>
 <style>
 html,body{margin:0;height:100%;background:#070a0f;color:#e8dfd2;font-family:Georgia,serif;overflow:hidden}
-body{display:flex;flex-direction:column}.bar{min-height:48px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 14px;background:#111923;border-bottom:1px solid #2a3542;font-size:13px;flex-wrap:wrap}.bar b{color:#f0d49a}.ok{color:#8fd4aa}.tools{display:flex;gap:7px;align-items:center}.bar button{background:#1a2532;color:#eee;border:1px solid #3a4756;border-radius:7px;padding:7px 10px;cursor:pointer}.bar button:hover{border-color:#d8af69}.bar button.primary{background:#6a4a21;border-color:#b2874e}.bar button:disabled{opacity:.5;cursor:wait}iframe{border:0;width:100%;flex:1;min-height:0;background:#080b10}body.fullscreen .bar{display:none}body.fullscreen iframe{height:100vh}
+body{display:flex;flex-direction:column}.bar{min-height:48px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 14px;background:#111923;border-bottom:1px solid #2a3542;font-size:13px;flex-wrap:wrap}.bar b{color:#f0d49a}.ok{color:#8fd4aa}.err{color:#e18484}.tools{display:flex;gap:7px;align-items:center}.bar button{background:#1a2532;color:#eee;border:1px solid #3a4756;border-radius:7px;padding:7px 10px;cursor:pointer}.bar button:hover{border-color:#d8af69}.bar button.primary{background:#6a4a21;border-color:#b2874e}.bar button:disabled{opacity:.5;cursor:wait}iframe{border:0;width:100%;flex:1;min-height:0;background:#080b10}body.fullscreen .bar{display:none}body.fullscreen iframe{height:100vh}
 </style>
 </head>
 <body>
@@ -16,19 +16,20 @@ body{display:flex;flex-direction:column}.bar{min-height:48px;display:flex;align-
 (function(){'use strict';
 const f=document.getElementById('game'),status=document.getElementById('status'),start=document.getElementById('start');
 const scripts=['data/techniques-5000.js','manuals/catalog.js','traits-system.js','martial-system.js','technique-progression-fix.js','portrait-manifest.js','portrait-optimization.js','portrait-runtime.js','portrait-system.js','body-system.js','world-simulation.js','world-life-systems.js','world-integration.js','systems/simulation-core.js','systems/discovery-system.js','systems/discovery-ui.js','game-fixes.js','ui-enhancements.js','ui-rpg.js','engine/wasm-loader.js'];
-function loadScript(src){return new Promise((resolve,reject)=>{const d=f.contentDocument;if(!d||!d.body)return reject(new Error('document-jeu-indisponible'));if(d.getElementById('boot-'+src))return resolve(true);const s=d.createElement('script');s.id='boot-'+src;s.src=src;s.onload=()=>resolve(true);s.onerror=()=>reject(new Error('fichier-manquant:'+src));d.body.appendChild(s)})}
+function loadScript(src){return new Promise((resolve,reject)=>{try{const d=f.contentDocument;if(!d||!d.body)return reject(new Error('document-jeu-indisponible'));if(d.getElementById('boot-'+src))return resolve(true);const s=d.createElement('script');s.id='boot-'+src;s.src=src;s.onload=()=>resolve(true);s.onerror=()=>reject(new Error('fichier-manquant:'+src));d.body.appendChild(s)}catch(e){reject(e)}})}
 function loadCSS(src){const d=f.contentDocument;if(!d||d.getElementById('boot-css-'+src))return;const l=d.createElement('link');l.id='boot-css-'+src;l.rel='stylesheet';l.href=src;d.head.appendChild(l)}
 async function boot(){
- const d=f.contentDocument,w=f.contentWindow;if(!d||!w)return;
+ const d=f.contentDocument,w=f.contentWindow;if(!d||!w){status.textContent='Document du jeu indisponible';status.className='err';return;}
  loadCSS('ui-refonte.css');loadCSS('body-system.css');
  try{w.eval('if(typeof S!=="undefined") window.S=S;');}catch(e){console.error(e)}
- const results=await Promise.allSettled(scripts.map(loadScript));
- const failed=results.filter(x=>x.status==='rejected');
- try{const brand=d.querySelector('.brand');if(brand)brand.textContent='武林 · MURIM';const title=d.querySelector('title');if(title)title.textContent='Murim — Les Mille Destins';if(w.MurimBody&&w.MurimBody.build)w.MurimBody.build();if(w.MurimPortraits&&w.MurimPortraits.refresh)w.MurimPortraits.refresh();if(w.MurimPortraitAI&&w.MurimPortraitAI.refresh)w.MurimPortraitAI.refresh();if(w.render)w.render();}catch(e){console.error(e)}
- start.disabled=false;status.textContent=failed.length?`Jianghu chargé · ${failed.length} module(s) optionnel(s) indisponible(s)`:'Jianghu chargé · systèmes actifs · portraits à la demande';
+ const failed=[];
+ for(const src of scripts){try{await loadScript(src)}catch(e){failed.push(src);console.error('[Murim] module non chargé',src,e)}}
+ try{w.eval('if(typeof S!=="undefined") window.S=S;');}catch(e){console.error(e)}
+ try{const brand=d.querySelector('.brand');if(brand)brand.textContent='武林 · MURIM';const title=d.querySelector('title');if(title)title.textContent='Murim — Les Mille Destins';if(w.MurimBody&&w.MurimBody.build)w.MurimBody.build();if(w.MurimPortraits&&w.MurimPortraits.refresh)w.MurimPortraits.refresh();if(w.MurimPortraitAI&&w.MurimPortraitAI.refresh)w.MurimPortraitAI.refresh();if(w.render)w.render();}catch(e){console.error('[Murim] rendu initial',e)}
+ start.disabled=false;status.className=failed.length?'err':'ok';status.textContent=failed.length?`Jianghu chargé · ${failed.length} module(s) indisponible(s)`:'Jianghu chargé · prêt';
 }
 f.addEventListener('load',()=>setTimeout(boot,0),{once:true});
-start.onclick=()=>{try{const w=f.contentWindow;if(typeof w.newLife==='function')w.newLife();else throw new Error('Nouvelle vie indisponible')}catch(e){console.error(e);status.textContent='Impossible de créer la vie : '+e.message}};
+start.onclick=()=>{try{const w=f.contentWindow;if(typeof w.newLife!=='function')throw new Error('Nouvelle vie indisponible');start.disabled=true;w.newLife();setTimeout(()=>{start.disabled=false},250);status.textContent='Vie créée · Jianghu en cours';status.className='ok';}catch(e){console.error('[Murim] newLife',e);start.disabled=false;status.textContent='Erreur Nouvelle vie : '+e.message;status.className='err';const d=f.contentDocument;const story=d&&d.getElementById('story');if(story)story.innerHTML='<div class="event"><b>Erreur de démarrage</b><br>La nouvelle vie n’a pas pu être créée. Recharge la page pour réinitialiser le moteur.</div>';}};
 document.getElementById('reload').onclick=()=>location.reload();
 document.getElementById('expand').onclick=async()=>{try{if(!document.fullscreenElement)await f.requestFullscreen();else await document.exitFullscreen()}catch(e){console.error(e)}};
 })();
