@@ -18,24 +18,51 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Configure
         run: cmake -S app/native -B build/native -A x64
+
       - name: Build
         run: cmake --build build/native --config Release --parallel
+
       - name: Smoke check
         shell: pwsh
         run: |
-          if (-not (Test-Path 'build/native/Release/Murim.exe')) { throw 'Murim.exe introuvable' }
-          $size = (Get-Item 'build/native/Release/Murim.exe').Length
+          $exe = 'build/native/Release/Murim.exe'
+          if (-not (Test-Path $exe)) { throw 'Murim.exe introuvable' }
+          $size = (Get-Item $exe).Length
           if ($size -lt 10000) { throw 'Murim.exe semble invalide' }
           Write-Host "Murim.exe OK - $size octets"
+
+      - name: Windows Defender scan
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'build/native/Release/Murim.exe').Path
+          $mp = Get-Command Start-MpScan -ErrorAction SilentlyContinue
+          if ($mp) {
+            Start-MpScan -ScanPath $exe -ScanType CustomScan
+            Write-Host 'Microsoft Defender scan terminé.'
+          } else {
+            Write-Warning 'Microsoft Defender cmdlet indisponible sur ce runner; build conservé mais scan système non exécuté.'
+          }
+
+      - name: Integrity hash
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash 'build/native/Release/Murim.exe' -Algorithm SHA256).Hash
+          "SHA256=$hash" | Out-File -Encoding utf8 dist-hash.txt
+          Write-Host "SHA-256: $hash"
+
       - name: Package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item 'build/native/Release/Murim.exe' 'dist/Murim.exe'
+          Copy-Item 'dist-hash.txt' 'dist/SHA256.txt'
+          Compress-Archive -Path 'dist/Murim.exe','dist/SHA256.txt' -DestinationPath 'Murim-Windows-x64.zip' -Force
+
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
           name: Murim-Windows-x64
-          path: dist/Murim.exe
+          path: Murim-Windows-x64.zip
