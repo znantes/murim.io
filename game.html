@@ -18,6 +18,20 @@ const f=document.getElementById('game'),status=document.getElementById('status')
 const scripts=['data/techniques-5000.js','manuals/catalog.js','traits-system.js','martial-system.js','technique-progression-fix.js','portrait-manifest.js','portrait-optimization.js','portrait-runtime.js','portrait-system.js','body-system.js','world-simulation.js','world-life-systems.js','world-integration.js','systems/simulation-core.js','systems/discovery-system.js','systems/discovery-ui.js','game-fixes.js','ui-enhancements.js','ui-rpg.js','engine/wasm-loader.js'];
 function loadScript(src){return new Promise((resolve,reject)=>{try{const d=f.contentDocument;if(!d||!d.body)return reject(new Error('document-jeu-indisponible'));if(d.getElementById('boot-'+src))return resolve(true);const s=d.createElement('script');s.id='boot-'+src;s.src=src;s.onload=()=>resolve(true);s.onerror=()=>reject(new Error('fichier-manquant:'+src));d.body.appendChild(s)}catch(e){reject(e)}})}
 function loadCSS(src){const d=f.contentDocument;if(!d||d.getElementById('boot-css-'+src))return;const l=d.createElement('link');l.id='boot-css-'+src;l.rel='stylesheet';l.href=src;d.head.appendChild(l)}
+function ensureCompatibility(w){
+  try{if(typeof w.S!=='object'||!w.S)return false;}catch(e){return false}
+  if(typeof w.discover!=='function'){
+    w.discover=function(text,source){
+      const s=w.S;if(!s)return null;
+      s.knowledge=s.knowledge||[];
+      const entry={id:'legacy-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2),text:String(text||''),source:source||'observation',date:typeof w.now==='function'?w.now():''};
+      s.knowledge.unshift(entry);
+      if(s.knowledge.length>200)s.knowledge.length=200;
+      return entry;
+    };
+  }
+  return true;
+}
 async function boot(){
  const d=f.contentDocument,w=f.contentWindow;if(!d||!w){status.textContent='Document du jeu indisponible';status.className='err';return;}
  loadCSS('ui-refonte.css');loadCSS('body-system.css');
@@ -25,11 +39,12 @@ async function boot(){
  const failed=[];
  for(const src of scripts){try{await loadScript(src)}catch(e){failed.push(src);console.error('[Murim] module non chargé',src,e)}}
  try{w.eval('if(typeof S!=="undefined") window.S=S;');}catch(e){console.error(e)}
+ ensureCompatibility(w);
  try{const brand=d.querySelector('.brand');if(brand)brand.textContent='武林 · MURIM';const title=d.querySelector('title');if(title)title.textContent='Murim — Les Mille Destins';if(w.MurimBody&&w.MurimBody.build)w.MurimBody.build();if(w.MurimPortraits&&w.MurimPortraits.refresh)w.MurimPortraits.refresh();if(w.MurimPortraitAI&&w.MurimPortraitAI.refresh)w.MurimPortraitAI.refresh();if(w.render)w.render();}catch(e){console.error('[Murim] rendu initial',e)}
  start.disabled=false;status.className=failed.length?'err':'ok';status.textContent=failed.length?`Jianghu chargé · ${failed.length} module(s) indisponible(s)`:'Jianghu chargé · prêt';
 }
 f.addEventListener('load',()=>setTimeout(boot,0),{once:true});
-start.onclick=()=>{try{const w=f.contentWindow;if(typeof w.newLife!=='function')throw new Error('Nouvelle vie indisponible');start.disabled=true;w.newLife();setTimeout(()=>{start.disabled=false},250);status.textContent='Vie créée · Jianghu en cours';status.className='ok';}catch(e){console.error('[Murim] newLife',e);start.disabled=false;status.textContent='Erreur Nouvelle vie : '+e.message;status.className='err';const d=f.contentDocument;const story=d&&d.getElementById('story');if(story)story.innerHTML='<div class="event"><b>Erreur de démarrage</b><br>La nouvelle vie n’a pas pu être créée. Recharge la page pour réinitialiser le moteur.</div>';}};
+start.onclick=()=>{try{const w=f.contentWindow;if(!ensureCompatibility(w))throw new Error('Moteur non initialisé');if(typeof w.newLife!=='function')throw new Error('Nouvelle vie indisponible');start.disabled=true;w.newLife();setTimeout(()=>{start.disabled=false},250);status.textContent='Vie créée · Jianghu en cours';status.className='ok';}catch(e){console.error('[Murim] newLife',e);start.disabled=false;status.textContent='Erreur Nouvelle vie : '+e.message;status.className='err';const d=f.contentDocument;const story=d&&d.getElementById('story');if(story)story.innerHTML='<div class="event"><b>Erreur de démarrage</b><br>La nouvelle vie n’a pas pu être créée. Recharge la page pour réinitialiser le moteur.</div>';}};
 document.getElementById('reload').onclick=()=>location.reload();
 document.getElementById('expand').onclick=async()=>{try{if(!document.fullscreenElement)await f.requestFullscreen();else await document.exitFullscreen()}catch(e){console.error(e)}};
 })();
