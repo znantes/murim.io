@@ -30,10 +30,13 @@ public sealed class WorldState
         const string culture = "Unknown";
         const string region = "Unknown";
 
-        var parentGenerator = new ParentGenerator();
-        var parents = parentGenerator.CreateParents(familyName, culture, region, seed + 1);
-        AddNpc(parents.Father);
-        AddNpc(parents.Mother);
+        var parentLife = new ParentLifeGenerator();
+        var parents = parentLife.CreateParentPair(
+            playerFamilyName: familyName,
+            culture,
+            region,
+            seed + 1,
+            this);
 
         family.FatherId = parents.Father.Id;
         family.MotherId = parents.Mother.Id;
@@ -52,6 +55,11 @@ public sealed class WorldState
         var npc = generator.CreateNewborn(context, seed + 2, parents.Father, parents.Mother);
         AddNpc(npc);
         family.ChildrenIds.Add(npc.Id);
+
+        parents.Father.History.Add("Naissance de l'enfant", parents.Father.AgeYears, $"Naissance de {npc.Identity.DisplayName}.");
+        parents.Mother.History.Add("Naissance de l'enfant", parents.Mother.AgeYears, $"Naissance de {npc.Identity.DisplayName}.");
+        npc.History.Add("Naissance", 0, $"Naissance au sein de la famille {family.Name}.");
+
         PlayerNpc = npc;
         return npc;
     }
@@ -78,6 +86,8 @@ public sealed class WorldState
         family.FatherId = father.Id;
         family.MotherId = mother.Id;
         family.ChildrenIds.Add(child.Id);
+        father.History.Add("Naissance de l'enfant", father.AgeYears, $"Naissance de {child.Identity.DisplayName}.");
+        mother.History.Add("Naissance de l'enfant", mother.AgeYears, $"Naissance de {child.Identity.DisplayName}.");
         return child;
     }
 }
