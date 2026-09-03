@@ -23,5 +23,17 @@ public partial class Main : Node
         GD.Print($"Inherited physical potential: {player.Inheritance.PhysicalPotential:F2}");
         GD.Print($"Inherited mental potential: {player.Inheritance.MentalPotential:F2}");
         GD.Print($"Inherited learning potential: {player.Inheritance.LearningPotential:F2}");
+
+        PrintHistory("Father history", father);
+        PrintHistory("Mother history", mother);
+        GD.Print($"Origin family branches: {_world.Families.Count - 1}");
+        GD.Print($"Living NPCs generated: {_world.Npcs.Count}");
+    }
+
+    private static void PrintHistory(string label, Npc npc)
+    {
+        GD.Print($"--- {label} ---");
+        foreach (var lifeEvent in npc.History.Events)
+            GD.Print($"Age {lifeEvent.AgeYears}: {lifeEvent.Type} — {lifeEvent.Description}");
     }
 }
