@@ -11,11 +11,17 @@ public partial class Main : Node
     {
         _world = new WorldState();
         var player = _world.CreatePlayerAtBirth(seed: 20260903, familyName: "Murim");
+        var family = _world.Families[player.Birth.FamilyId!.Value];
+        var father = _world.Npcs[family.FatherId!.Value];
+        var mother = _world.Npcs[family.MotherId!.Value];
 
         GD.Print($"Murim.io initialized — Day {_world.Time.Day}, {_world.Time.Period}");
+        GD.Print($"Family: {family.Name}");
+        GD.Print($"Father: {father.Identity.DisplayName}, age {father.AgeYears}");
+        GD.Print($"Mother: {mother.Identity.DisplayName}, age {mother.AgeYears}");
         GD.Print($"Born: {player.Identity.DisplayName} ({player.Identity.Sex})");
-        GD.Print($"Body: {player.Body.HeightCm:F1} cm / {player.Body.WeightKg:F2} kg");
-        GD.Print($"Intelligence potential: {player.Mind.Intelligence:F2}");
-        GD.Print($"Learning potential: {player.Mind.LearningAbility:F2}");
+        GD.Print($"Inherited physical potential: {player.Inheritance.PhysicalPotential:F2}");
+        GD.Print($"Inherited mental potential: {player.Inheritance.MentalPotential:F2}");
+        GD.Print($"Inherited learning potential: {player.Inheritance.LearningPotential:F2}");
     }
 }
