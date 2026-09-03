@@ -8,6 +8,7 @@ public sealed class Npc
     public Mind Mind { get; } = new();
     public Personality Personality { get; } = new();
     public InheritanceProfile Inheritance { get; } = new();
+    public LifeHistory History { get; } = new();
 
     public BirthContext Birth { get; internal set; } = new();
     public int AgeYears { get; private set; }
