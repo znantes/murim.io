@@ -3,15 +3,19 @@ namespace Murim.World;
 public sealed class Npc
 {
     public Guid Id { get; } = Guid.NewGuid();
-    public string Name { get; set; } = "Unknown";
-    public int AgeYears { get; set; }
+    public Identity Identity { get; } = new();
+    public Body Body { get; } = new();
+    public Mind Mind { get; } = new();
+    public Personality Personality { get; } = new();
+
+    public int AgeYears { get; private set; }
     public bool IsAlive { get; private set; } = true;
 
-    public void Die()
+    public void AdvanceAge(int years)
     {
-        if (!IsAlive)
-            return;
-
-        IsAlive = false;
+        if (years < 0) throw new ArgumentOutOfRangeException(nameof(years));
+        AgeYears += years;
     }
+
+    public void Die() => IsAlive = false;
 }
