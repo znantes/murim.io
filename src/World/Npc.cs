@@ -9,6 +9,7 @@ public sealed class Npc
     public Personality Personality { get; } = new();
     public InheritanceProfile Inheritance { get; } = new();
     public LifeHistory History { get; } = new();
+    public List<Relationship> Relationships { get; } = new();
 
     public BirthContext Birth { get; internal set; } = new();
     public int AgeYears { get; private set; }
