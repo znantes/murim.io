@@ -7,7 +7,9 @@ public sealed class Npc
     public Body Body { get; } = new();
     public Mind Mind { get; } = new();
     public Personality Personality { get; } = new();
+    public InheritanceProfile Inheritance { get; } = new();
 
+    public BirthContext Birth { get; internal set; } = new();
     public int AgeYears { get; private set; }
     public bool IsAlive { get; private set; } = true;
 
