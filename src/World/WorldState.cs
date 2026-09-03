@@ -27,16 +27,29 @@ public sealed class WorldState
         var family = new Family { Name = familyName };
         AddFamily(family);
 
+        const string culture = "Unknown";
+        const string region = "Unknown";
+
+        var parentGenerator = new ParentGenerator();
+        var parents = parentGenerator.CreateParents(familyName, culture, region, seed + 1);
+        AddNpc(parents.Father);
+        AddNpc(parents.Mother);
+
+        family.FatherId = parents.Father.Id;
+        family.MotherId = parents.Mother.Id;
+
         var context = new BirthContext
         {
             FamilyId = family.Id,
-            Culture = "Unknown",
+            FatherId = parents.Father.Id,
+            MotherId = parents.Mother.Id,
+            Culture = culture,
             SocialOrigin = familyName,
-            Region = "Unknown"
+            Region = region
         };
 
         var generator = new BirthGenerator();
-        var npc = generator.CreateNewborn(context, seed);
+        var npc = generator.CreateNewborn(context, seed + 2, parents.Father, parents.Mother);
         AddNpc(npc);
         family.ChildrenIds.Add(npc.Id);
         PlayerNpc = npc;
