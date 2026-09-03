@@ -6,6 +6,7 @@ public sealed class WorldState
 {
     public GameTime Time { get; } = new();
     public Dictionary<Guid, Npc> Npcs { get; } = new();
+    public Dictionary<Guid, Family> Families { get; } = new();
 
     public Npc? PlayerNpc { get; private set; }
 
@@ -15,12 +16,55 @@ public sealed class WorldState
         Npcs[npc.Id] = npc;
     }
 
+    public void AddFamily(Family family)
+    {
+        ArgumentNullException.ThrowIfNull(family);
+        Families[family.Id] = family;
+    }
+
     public Npc CreatePlayerAtBirth(int seed, string familyName = "Unknown")
     {
-        var generator = new BirthGenerator(seed);
-        var npc = generator.CreateNewborn(familyName);
+        var family = new Family { Name = familyName };
+        AddFamily(family);
+
+        var context = new BirthContext
+        {
+            FamilyId = family.Id,
+            Culture = "Unknown",
+            SocialOrigin = familyName,
+            Region = "Unknown"
+        };
+
+        var generator = new BirthGenerator();
+        var npc = generator.CreateNewborn(context, seed);
         AddNpc(npc);
+        family.ChildrenIds.Add(npc.Id);
         PlayerNpc = npc;
         return npc;
+    }
+
+    public Npc CreateChild(int seed, Family family, Npc father, Npc mother, string culture, string region)
+    {
+        ArgumentNullException.ThrowIfNull(family);
+        ArgumentNullException.ThrowIfNull(father);
+        ArgumentNullException.ThrowIfNull(mother);
+
+        var context = new BirthContext
+        {
+            FamilyId = family.Id,
+            FatherId = father.Id,
+            MotherId = mother.Id,
+            Culture = culture,
+            SocialOrigin = family.Name,
+            Region = region
+        };
+
+        var generator = new BirthGenerator();
+        var child = generator.CreateNewborn(context, seed, father, mother);
+        AddNpc(child);
+        family.FatherId = father.Id;
+        family.MotherId = mother.Id;
+        family.ChildrenIds.Add(child.Id);
+        return child;
     }
 }
