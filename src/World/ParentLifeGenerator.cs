@@ -19,6 +19,11 @@ public sealed class ParentLifeGenerator
         var mother = CreateParent(playerFamilyName, "Female", culture, region, motherOrigin, seed + 41);
         world.AddNpc(father);
         world.AddNpc(mother);
+        fatherOrigin.ChildrenIds.Add(father.Id);
+        motherOrigin.ChildrenIds.Add(mother.Id);
+
+        CreateSiblings(father, fatherOrigin, culture, region, seed + 51, world);
+        CreateSiblings(mother, motherOrigin, culture, region, seed + 61, world);
 
         father.History.Add("Rencontre", father.AgeYears - 3, $"Rencontre avec {mother.Identity.DisplayName}.");
         mother.History.Add("Rencontre", mother.AgeYears - 3, $"Rencontre avec {father.Identity.DisplayName}.");
@@ -41,7 +46,6 @@ public sealed class ParentLifeGenerator
         };
         world.AddFamily(family);
 
-        // Generation -2: grandparents of the player's parents.
         var grandfather = CreateRelative(familyName, random, "Grand-parent", "Male", origin, 65 + random.Next(20));
         var grandmother = CreateRelative(familyName, random, "Grand-parent", "Female", origin, 60 + random.Next(20));
         world.AddNpc(grandfather);
@@ -49,7 +53,6 @@ public sealed class ParentLifeGenerator
         family.FatherId = grandfather.Id;
         family.MotherId = grandmother.Id;
 
-        // Generation -1: parent of the future parent, born into this branch.
         var ancestorChild = CreateRelative(familyName, random, "Ancêtre", random.Next(2) == 0 ? "Male" : "Female", origin, 35 + random.Next(15));
         ancestorChild.Birth = new BirthContext
         {
@@ -65,8 +68,26 @@ public sealed class ParentLifeGenerator
         ancestorChild.History.Add("Transmission", 16, "Reçoit des savoirs familiaux transmis sur plusieurs générations.");
         world.AddNpc(ancestorChild);
         family.ChildrenIds.Add(ancestorChild.Id);
-
         return family;
+    }
+
+    private static void CreateSiblings(Npc parent, Family originFamily, string culture, string region, int seed, WorldState world)
+    {
+        var random = new Random(seed);
+        var siblingCount = 1 + random.Next(3);
+        for (var i = 0; i < siblingCount; i++)
+        {
+            var sibling = CreateParent(
+                parent.Identity.FamilyName,
+                random.Next(2) == 0 ? "Male" : "Female",
+                culture,
+                region,
+                originFamily,
+                random.Next());
+            sibling.History.Add("Fratrie", sibling.AgeYears - 2, $"Grandit aux côtés de {parent.Identity.DisplayName}.");
+            world.AddNpc(sibling);
+            originFamily.ChildrenIds.Add(sibling.Id);
+        }
     }
 
     private static Npc CreateRelative(string familyName, Random random, string role, string sex, FamilyOrigin origin, int age)
@@ -101,11 +122,9 @@ public sealed class ParentLifeGenerator
                 SocialOrigin = originFamily.Name
             }
         };
-
         npc.Identity.GivenName = sex == "Male" ? $"Père-{random.Next(1000, 9999)}" : $"Mère-{random.Next(1000, 9999)}";
         npc.Identity.FamilyName = familyName;
         npc.Identity.Sex = sex;
-
         npc.Body.HeightCm = sex == "Male" ? 165 + random.NextDouble() * 25 : 155 + random.NextDouble() * 20;
         npc.Body.WeightKg = 48 + random.NextDouble() * 35;
         npc.Body.Strength = Trait(random); npc.Body.Speed = Trait(random); npc.Body.Endurance = Trait(random);
@@ -114,19 +133,16 @@ public sealed class ParentLifeGenerator
         npc.Mind.Intelligence = Trait(random); npc.Mind.Memory = Trait(random); npc.Mind.Concentration = Trait(random);
         npc.Mind.Willpower = Trait(random); npc.Mind.Perception = Trait(random); npc.Mind.LearningAbility = Trait(random);
         npc.Mind.MentalResilience = Trait(random);
-
         npc.Inheritance.PhysicalPotential = Average(npc.Body.Strength, npc.Body.Speed, npc.Body.Endurance);
         npc.Inheritance.MentalPotential = Average(npc.Mind.Intelligence, npc.Mind.Memory, npc.Mind.Perception);
         npc.Inheritance.RecoveryPotential = npc.Body.Recovery;
         npc.Inheritance.LearningPotential = npc.Mind.LearningAbility;
         npc.Inheritance.InternalEnergyPotential = Trait(random);
-
         npc.Personality.Ambition = random.NextDouble(); npc.Personality.Courage = random.NextDouble();
         npc.Personality.Prudence = random.NextDouble(); npc.Personality.Impulsivity = random.NextDouble();
         npc.Personality.Patience = random.NextDouble(); npc.Personality.Discipline = random.NextDouble();
         npc.Personality.Sociability = random.NextDouble(); npc.Personality.Empathy = random.NextDouble();
         npc.Personality.Pride = random.NextDouble(); npc.Personality.Curiosity = random.NextDouble();
-
         var age = 25 + random.Next(20);
         npc.AdvanceAge(age);
         npc.History.Add("Naissance", 0, $"Naissance dans la famille {originFamily.Name}.");
@@ -140,15 +156,9 @@ public sealed class ParentLifeGenerator
 
     private static string SocialStatusFor(FamilyOrigin origin) => origin switch
     {
-        FamilyOrigin.Imperial => "Impérial",
-        FamilyOrigin.Noble => "Noble",
-        FamilyOrigin.Martial => "Martial",
-        FamilyOrigin.Merchant => "Marchand",
-        FamilyOrigin.Religious => "Religieux",
-        FamilyOrigin.Criminal => "Criminel",
-        FamilyOrigin.Secretive => "Secret",
-        FamilyOrigin.Rural => "Rural",
-        _ => "Commun"
+        FamilyOrigin.Imperial => "Impérial", FamilyOrigin.Noble => "Noble", FamilyOrigin.Martial => "Martial",
+        FamilyOrigin.Merchant => "Marchand", FamilyOrigin.Religious => "Religieux", FamilyOrigin.Criminal => "Criminel",
+        FamilyOrigin.Secretive => "Secret", FamilyOrigin.Rural => "Rural", _ => "Commun"
     };
 
     private static double Trait(Random random) => 0.25 + random.NextDouble() * 0.70;
