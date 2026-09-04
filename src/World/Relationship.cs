@@ -24,4 +24,11 @@ public sealed class Relationship
     public double Trust { get; set; }
     public double Respect { get; set; }
     public bool IsActive { get; set; } = true;
+
+    public void Shift(double affinityDelta, double trustDelta, double respectDelta)
+    {
+        Affinity = Math.Clamp(Affinity + affinityDelta, -1.0, 1.0);
+        Trust = Math.Clamp(Trust + trustDelta, 0.0, 1.0);
+        Respect = Math.Clamp(Respect + respectDelta, 0.0, 1.0);
+    }
 }
