@@ -7,6 +7,8 @@ public sealed class WorldState
     public GameTime Time { get; } = new();
     public Dictionary<Guid, Npc> Npcs { get; } = new();
     public Dictionary<Guid, Family> Families { get; } = new();
+    public FamilyLifeSystem FamilyLife { get; } = new();
+    public int WorldSeed { get; private set; }
     public Npc? PlayerNpc { get; private set; }
 
     public void AddNpc(Npc npc)
@@ -21,8 +23,19 @@ public sealed class WorldState
         Families[family.Id] = family;
     }
 
+    public void AdvanceMinutes(int minutes)
+    {
+        if (minutes < 0) throw new ArgumentOutOfRangeException(nameof(minutes));
+        var oldDay = Time.Day;
+        Time.AdvanceMinutes(minutes);
+        var elapsedDays = Time.Day - oldDay;
+        for (var i = 0L; i < elapsedDays; i++)
+            FamilyLife.AdvanceDay(this);
+    }
+
     public Npc CreatePlayerAtBirth(int seed, string familyName = "Unknown", FamilyOrigin? forcedOrigin = null)
     {
+        WorldSeed = seed;
         var random = new Random(seed);
         var origin = forcedOrigin ?? RollOrigin(random);
         var actualFamilyName = origin == FamilyOrigin.Imperial
@@ -59,6 +72,9 @@ public sealed class WorldState
         var npc = generator.CreateNewborn(context, seed + 2, parents.Father, parents.Mother);
         AddNpc(npc);
         family.ChildrenIds.Add(npc.Id);
+        FamilyLife.LinkParentChild(parents.Father, npc);
+        FamilyLife.LinkParentChild(parents.Mother, npc);
+        FamilyLife.LinkSpouses(parents.Father, parents.Mother);
         parents.Father.History.Add("Naissance de l'enfant", parents.Father.AgeYears, $"Naissance de {npc.Identity.DisplayName}.");
         parents.Mother.History.Add("Naissance de l'enfant", parents.Mother.AgeYears, $"Naissance de {npc.Identity.DisplayName}.");
         npc.History.Add("Naissance", 0, $"Naissance au sein de la famille {family.Name}.");
@@ -86,8 +102,6 @@ public sealed class WorldState
         var generator = new BirthGenerator();
         var child = generator.CreateNewborn(context, seed, father, mother);
         AddNpc(child);
-        family.FatherId = father.Id;
-        family.MotherId = mother.Id;
         family.ChildrenIds.Add(child.Id);
         father.History.Add("Naissance de l'enfant", father.AgeYears, $"Naissance de {child.Identity.DisplayName}.");
         mother.History.Add("Naissance de l'enfant", mother.AgeYears, $"Naissance de {child.Identity.DisplayName}.");
