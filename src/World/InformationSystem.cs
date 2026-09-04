@@ -55,7 +55,15 @@ public sealed class InformationSystem
         var reliability = original.Reliability;
         if (trust < 0.25 && reliability == InformationReliability.Verified) reliability = InformationReliability.Plausible;
         if (trust < 0.1) reliability = InformationReliability.Rumor;
-        if (reliability > InformationReliability.Rumor && from.Personality.Sociability < 0.2) reliability--;
+        if (reliability > InformationReliability.Rumor && from.Personality.Sociability < 0.2)
+        {
+            reliability = reliability switch
+            {
+                InformationReliability.Verified => InformationReliability.Plausible,
+                InformationReliability.Plausible => InformationReliability.Unverified,
+                _ => InformationReliability.Rumor
+            };
+        }
 
         var item = Publish(world, from, original.Topic, original.Content, original.SubjectNpcId, original.LocationId, reliability, original.Polarity);
         foreach (var heardId in original.HeardByNpcIds) item.HeardByNpcIds.Add(heardId);
