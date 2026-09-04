@@ -59,25 +59,10 @@ public sealed class MartialTrainingResult
 
 public sealed class MartialTrainingSystem
 {
-    private readonly Dictionary<Guid, MartialProfile> _profiles = new();
     private readonly Dictionary<Guid, MartialTechnique> _techniques = new();
-
     public IReadOnlyDictionary<Guid, MartialTechnique> Techniques => _techniques;
 
-    public MartialProfile ProfileOf(Npc npc)
-    {
-        if (!_profiles.TryGetValue(npc.Id, out var profile))
-        {
-            profile = new MartialProfile
-            {
-                PhysicalDiscipline = npc.Personality.Discipline,
-                InternalEnergyCapacity = Math.Clamp(npc.Inheritance.InternalEnergyPotential, 0, 100),
-                InternalEnergyControl = npc.Mind.Concentration * 0.5
-            };
-            _profiles[npc.Id] = profile;
-        }
-        return profile;
-    }
+    public MartialProfile ProfileOf(Npc npc) => npc.Martial;
 
     public MartialTechnique Register(string name, string school, MartialTechniqueCategory category, double difficulty,
         double staminaCost = 5, double internalEnergyCost = 0, double strengthRequirement = 0,
@@ -85,15 +70,10 @@ public sealed class MartialTrainingSystem
     {
         var technique = new MartialTechnique
         {
-            Name = name,
-            School = school,
-            Category = category,
-            Difficulty = Math.Clamp(difficulty, 1, 100),
-            StaminaCost = Math.Max(0, staminaCost),
-            InternalEnergyCost = Math.Max(0, internalEnergyCost),
-            StrengthRequirement = Math.Max(0, strengthRequirement),
-            SpeedRequirement = Math.Max(0, speedRequirement),
-            CoordinationRequirement = Math.Max(0, coordinationRequirement),
+            Name = name, School = school, Category = category,
+            Difficulty = Math.Clamp(difficulty, 1, 100), StaminaCost = Math.Max(0, staminaCost),
+            InternalEnergyCost = Math.Max(0, internalEnergyCost), StrengthRequirement = Math.Max(0, strengthRequirement),
+            SpeedRequirement = Math.Max(0, speedRequirement), CoordinationRequirement = Math.Max(0, coordinationRequirement),
             PrerequisiteTechniqueId = prerequisiteTechniqueId
         };
         _techniques[technique.Id] = technique;
@@ -104,15 +84,11 @@ public sealed class MartialTrainingSystem
     {
         if (!_techniques.TryGetValue(techniqueId, out var technique)) return false;
         var teacherProgress = ProfileOf(teacher).Get(techniqueId);
-        if (teacherProgress is null || teacherProgress.Proficiency < 20) return false;
-        if (!MeetsRequirements(student, technique)) return false;
+        if (teacherProgress is null || teacherProgress.Proficiency < 20 || !MeetsRequirements(student, technique)) return false;
+        if (technique.PrerequisiteTechniqueId is Guid prerequisite && (ProfileOf(student).Get(prerequisite)?.Proficiency ?? 0) < 10) return false;
 
         var profile = ProfileOf(student);
-        var progress = profile.Get(techniqueId) ?? new MartialTechniqueProgress
-        {
-            TechniqueId = techniqueId,
-            Potential = PotentialFor(student, technique)
-        };
+        var progress = profile.Get(techniqueId) ?? new MartialTechniqueProgress { TechniqueId = techniqueId, Potential = PotentialFor(student, technique) };
         if (!profile.Techniques.Contains(progress)) profile.Techniques.Add(progress);
         progress.Proficiency = Math.Max(progress.Proficiency, 1);
         progress.LastTrainingDay = world.Time.Day;
@@ -125,40 +101,29 @@ public sealed class MartialTrainingSystem
         if (!npc.IsAlive) throw new InvalidOperationException("Un NPC mort ne peut pas s'entraîner.");
         if (!_techniques.TryGetValue(techniqueId, out var technique)) throw new KeyNotFoundException("Technique inconnue.");
         if (!MeetsRequirements(npc, technique)) throw new InvalidOperationException("Le corps ou les capacités actuelles ne permettent pas cet entraînement.");
+        if (technique.PrerequisiteTechniqueId is Guid prerequisite && (ProfileOf(npc).Get(prerequisite)?.Proficiency ?? 0) < 10)
+            throw new InvalidOperationException("Une technique préalable doit être suffisamment maîtrisée.");
 
         var profile = ProfileOf(npc);
-        var progress = profile.Get(techniqueId) ?? new MartialTechniqueProgress
-        {
-            TechniqueId = techniqueId,
-            Potential = PotentialFor(npc, technique)
-        };
+        var progress = profile.Get(techniqueId) ?? new MartialTechniqueProgress { TechniqueId = techniqueId, Potential = PotentialFor(npc, technique) };
         if (!profile.Techniques.Contains(progress)) profile.Techniques.Add(progress);
 
         minutes = Math.Clamp(minutes, 5, 240);
         var conditionPenalty = npc.Conditions.Sum(c => c.Severity * (0.4 + c.Pain / 100.0));
         var fatiguePenalty = npc.Needs.Fatigue / 160.0;
         var aptitude = 0.25 + npc.Mind.LearningAbility / 200.0 + npc.Mind.Concentration / 250.0 + npc.Body.Endurance / 300.0;
-        var teacherBonus = progress.Known ? 1.0 : 0.8;
         var plateau = 1.0 - Math.Clamp(progress.Proficiency / Math.Max(1, progress.Potential), 0, 0.9);
-        var gain = Math.Max(0.01, minutes / 30.0 * aptitude * teacherBonus * plateau * (1 - Math.Min(0.75, conditionPenalty + fatiguePenalty)));
+        var gain = Math.Max(0.01, minutes / 30.0 * aptitude * plateau * (1 - Math.Min(0.75, conditionPenalty + fatiguePenalty)));
 
         progress.Proficiency = Math.Min(progress.Potential, progress.Proficiency + gain);
         progress.LastTrainingDay = world.Time.Day;
-        ProfileOf(npc).PhysicalDiscipline = Math.Min(100, ProfileOf(npc).PhysicalDiscipline + gain * 0.2);
+        profile.PhysicalDiscipline = Math.Min(100, profile.PhysicalDiscipline + gain * 0.2);
         world.AdvanceMinutes(minutes);
 
         var learned = progress.Proficiency >= 1;
         var outcome = learned ? $"{npc.Identity.DisplayName} progresse dans {technique.Name} (+{gain:0.00})." : $"{npc.Identity.DisplayName} découvre les bases de {technique.Name}.";
         npc.History.Add("Entraînement martial", npc.AgeYears, outcome);
-        return new MartialTrainingResult
-        {
-            NpcId = npc.Id,
-            TechniqueId = techniqueId,
-            Learned = learned,
-            ProgressGained = gain,
-            MinutesSpent = minutes,
-            Outcome = outcome
-        };
+        return new MartialTrainingResult { NpcId = npc.Id, TechniqueId = techniqueId, Learned = learned, ProgressGained = gain, MinutesSpent = minutes, Outcome = outcome };
     }
 
     public double CombatModifier(Npc npc, Guid? techniqueId, bool offensive)
@@ -173,9 +138,7 @@ public sealed class MartialTrainingSystem
     }
 
     private static bool MeetsRequirements(Npc npc, MartialTechnique technique) =>
-        npc.Body.Strength >= technique.StrengthRequirement &&
-        npc.Body.Speed >= technique.SpeedRequirement &&
-        npc.Body.Coordination >= technique.CoordinationRequirement;
+        npc.Body.Strength >= technique.StrengthRequirement && npc.Body.Speed >= technique.SpeedRequirement && npc.Body.Coordination >= technique.CoordinationRequirement;
 
     private static double PotentialFor(Npc npc, MartialTechnique technique)
     {
