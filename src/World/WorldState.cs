@@ -13,6 +13,8 @@ public sealed class WorldState
     public GeographySystem Geography { get; } = new();
     public TravelSystem Travel { get; } = new();
     public EnvironmentSystem Environment { get; } = new();
+    public InformationSystem Information { get; } = new();
+    public ReputationSystem Reputation { get; } = new();
     public int WorldSeed { get; private set; }
     public Npc? PlayerNpc { get; private set; }
 
