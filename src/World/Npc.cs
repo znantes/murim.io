@@ -11,9 +11,11 @@ public sealed class Npc
     public LifeHistory History { get; } = new();
     public List<Relationship> Relationships { get; } = new();
     public Profession Profession { get; } = new();
+    public HashSet<Guid> KnownLocationIds { get; } = new();
 
     public BirthContext Birth { get; internal set; } = new();
     public Guid? CurrentFamilyId { get; private set; }
+    public Guid? CurrentLocationId { get; private set; }
     public int AgeYears { get; private set; }
     public int AgeDays { get; private set; }
     public bool IsAlive { get; private set; } = true;
@@ -35,6 +37,10 @@ public sealed class Npc
     public void ApplyWealthChange(double amount) => Wealth = Math.Max(0, Wealth + amount);
 
     public void JoinFamily(Guid familyId) => CurrentFamilyId = familyId;
+
+    public void SetLocation(Guid locationId) => CurrentLocationId = locationId;
+
+    public void DiscoverLocation(Guid locationId) => KnownLocationIds.Add(locationId);
 
     public void Die() => IsAlive = false;
 }
