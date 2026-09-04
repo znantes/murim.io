@@ -17,6 +17,7 @@ public sealed class WorldState
     public ReputationSystem Reputation { get; } = new();
     public ExplorationSystem Exploration { get; } = new();
     public PerceptionSystem Perception { get; } = new();
+    public InventorySystem Inventory { get; } = new();
     public int WorldSeed { get; private set; }
     public Npc? PlayerNpc { get; private set; }
 
@@ -43,14 +44,14 @@ public sealed class WorldState
         WorldSeed = seed;
         Geography.GenerateStarterRegion(seed);
         foreach (var location in Geography.Locations.Values) Environment.Get(location.Id);
+        RegisterStarterItems();
         var home = Geography.Locations.Values.First(l => l.Type == LocationType.Village);
         var random = new Random(seed);
         var origin = forcedOrigin ?? RollOrigin(random);
         var actualFamilyName = origin == FamilyOrigin.Imperial ? $"Maison impériale {familyName}" : familyName;
         var family = new Family { Name = actualFamilyName, Origin = origin, SocialStatus = SocialStatusFor(origin) };
         AddFamily(family);
-        const string culture = "Unknown";
-        const string region = "Région du Berceau";
+        const string culture = "Unknown"; const string region = "Région du Berceau";
         var parents = new ParentLifeGenerator().CreateParentPair(actualFamilyName, culture, region, origin, seed + 1, this);
         family.FatherId = parents.Father.Id; family.MotherId = parents.Mother.Id;
         family.MemberIds.Add(parents.Father.Id); family.MemberIds.Add(parents.Mother.Id);
@@ -65,6 +66,15 @@ public sealed class WorldState
         npc.History.Add("Naissance", 0, $"Naissance au sein de la famille {family.Name}, à {home.Name}.");
         PlayerNpc = npc;
         return npc;
+    }
+
+    private void RegisterStarterItems()
+    {
+        Inventory.Register("Riz", ItemCategory.Food, 0.5, 1.0, true);
+        Inventory.Register("Eau", ItemCategory.Food, 1.0, 0.5, true);
+        Inventory.Register("Herbe médicinale", ItemCategory.Medicine, 0.1, 3.0, true);
+        Inventory.Register("Bois", ItemCategory.Material, 1.0, 0.8);
+        Inventory.Register("Outil simple", ItemCategory.Tool, 2.0, 12.0, false, 100);
     }
 
     public Npc CreateChild(int seed, Family family, Npc father, Npc mother, string culture, string region)
