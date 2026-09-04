@@ -13,12 +13,20 @@ public sealed class Npc
 
     public BirthContext Birth { get; internal set; } = new();
     public int AgeYears { get; private set; }
+    public int AgeDays { get; private set; }
     public bool IsAlive { get; private set; } = true;
 
     public void AdvanceAge(int years)
     {
         if (years < 0) throw new ArgumentOutOfRangeException(nameof(years));
-        AgeYears += years;
+        AdvanceDays(years * 365);
+    }
+
+    public void AdvanceDays(int days)
+    {
+        if (days < 0) throw new ArgumentOutOfRangeException(nameof(days));
+        AgeDays += days;
+        AgeYears = AgeDays / 365;
     }
 
     public void Die() => IsAlive = false;
