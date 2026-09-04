@@ -15,20 +15,13 @@ public sealed class WorldState
     public EnvironmentSystem Environment { get; } = new();
     public InformationSystem Information { get; } = new();
     public ReputationSystem Reputation { get; } = new();
+    public ExplorationSystem Exploration { get; } = new();
+    public PerceptionSystem Perception { get; } = new();
     public int WorldSeed { get; private set; }
     public Npc? PlayerNpc { get; private set; }
 
-    public void AddNpc(Npc npc)
-    {
-        ArgumentNullException.ThrowIfNull(npc);
-        Npcs[npc.Id] = npc;
-    }
-
-    public void AddFamily(Family family)
-    {
-        ArgumentNullException.ThrowIfNull(family);
-        Families[family.Id] = family;
-    }
+    public void AddNpc(Npc npc) { ArgumentNullException.ThrowIfNull(npc); Npcs[npc.Id] = npc; }
+    public void AddFamily(Family family) { ArgumentNullException.ThrowIfNull(family); Families[family.Id] = family; }
 
     public void AdvanceMinutes(int minutes)
     {
@@ -58,32 +51,17 @@ public sealed class WorldState
         AddFamily(family);
         const string culture = "Unknown";
         const string region = "Région du Berceau";
-        var parentLife = new ParentLifeGenerator();
-        var parents = parentLife.CreateParentPair(actualFamilyName, culture, region, origin, seed + 1, this);
-        family.FatherId = parents.Father.Id;
-        family.MotherId = parents.Mother.Id;
-        family.MemberIds.Add(parents.Father.Id);
-        family.MemberIds.Add(parents.Mother.Id);
-        parents.Father.JoinFamily(family.Id);
-        parents.Mother.JoinFamily(family.Id);
+        var parents = new ParentLifeGenerator().CreateParentPair(actualFamilyName, culture, region, origin, seed + 1, this);
+        family.FatherId = parents.Father.Id; family.MotherId = parents.Mother.Id;
+        family.MemberIds.Add(parents.Father.Id); family.MemberIds.Add(parents.Mother.Id);
+        parents.Father.JoinFamily(family.Id); parents.Mother.JoinFamily(family.Id);
         var context = new BirthContext { FamilyId = family.Id, FatherId = parents.Father.Id, MotherId = parents.Mother.Id, Culture = culture, SocialOrigin = actualFamilyName, Region = region };
         var npc = new BirthGenerator().CreateNewborn(context, seed + 2, parents.Father, parents.Mother);
-        AddNpc(npc);
-        family.ChildrenIds.Add(npc.Id);
-        family.MemberIds.Add(npc.Id);
-        npc.JoinFamily(family.Id);
-        foreach (var location in Geography.Locations.Values.Where(l => l.Type is LocationType.Village or LocationType.Town or LocationType.Market))
-            npc.DiscoverLocation(location.Id);
-        npc.SetLocation(home.Id);
-        parents.Father.DiscoverLocation(home.Id);
-        parents.Mother.DiscoverLocation(home.Id);
-        parents.Father.SetLocation(home.Id);
-        parents.Mother.SetLocation(home.Id);
-        FamilyLife.LinkParentChild(parents.Father, npc);
-        FamilyLife.LinkParentChild(parents.Mother, npc);
-        FamilyLife.LinkSpouses(parents.Father, parents.Mother);
-        parents.Father.History.Add("Naissance de l'enfant", parents.Father.AgeYears, $"Naissance de {npc.Identity.DisplayName}.");
-        parents.Mother.History.Add("Naissance de l'enfant", parents.Mother.AgeYears, $"Naissance de {npc.Identity.DisplayName}.");
+        AddNpc(npc); family.ChildrenIds.Add(npc.Id); family.MemberIds.Add(npc.Id); npc.JoinFamily(family.Id);
+        foreach (var location in Geography.Locations.Values.Where(l => l.Type is LocationType.Village or LocationType.Town or LocationType.Market)) npc.DiscoverLocation(location.Id);
+        npc.SetLocation(home.Id); parents.Father.SetLocation(home.Id); parents.Mother.SetLocation(home.Id);
+        parents.Father.DiscoverLocation(home.Id); parents.Mother.DiscoverLocation(home.Id);
+        FamilyLife.LinkParentChild(parents.Father, npc); FamilyLife.LinkParentChild(parents.Mother, npc); FamilyLife.LinkSpouses(parents.Father, parents.Mother);
         npc.History.Add("Naissance", 0, $"Naissance au sein de la famille {family.Name}, à {home.Name}.");
         PlayerNpc = npc;
         return npc;
@@ -91,33 +69,15 @@ public sealed class WorldState
 
     public Npc CreateChild(int seed, Family family, Npc father, Npc mother, string culture, string region)
     {
-        ArgumentNullException.ThrowIfNull(family);
-        ArgumentNullException.ThrowIfNull(father);
-        ArgumentNullException.ThrowIfNull(mother);
         var context = new BirthContext { FamilyId = family.Id, FatherId = father.Id, MotherId = mother.Id, Culture = culture, SocialOrigin = family.Name, Region = region };
         var child = new BirthGenerator().CreateNewborn(context, seed, father, mother);
-        AddNpc(child);
-        family.ChildrenIds.Add(child.Id);
-        family.MemberIds.Add(child.Id);
-        child.JoinFamily(family.Id);
-        if (father.CurrentLocationId is Guid locationId)
-        {
-            child.SetLocation(locationId);
-            child.DiscoverLocation(locationId);
-        }
+        AddNpc(child); family.ChildrenIds.Add(child.Id); family.MemberIds.Add(child.Id); child.JoinFamily(family.Id);
+        if (father.CurrentLocationId is Guid locationId) { child.SetLocation(locationId); child.DiscoverLocation(locationId); }
         father.History.Add("Naissance de l'enfant", father.AgeYears, $"Naissance de {child.Identity.DisplayName}.");
         mother.History.Add("Naissance de l'enfant", mother.AgeYears, $"Naissance de {child.Identity.DisplayName}.");
         return child;
     }
 
-    private static FamilyOrigin RollOrigin(Random random)
-    {
-        var roll = random.Next(100);
-        return roll switch { < 70 => FamilyOrigin.Common, < 80 => FamilyOrigin.Rural, < 88 => FamilyOrigin.Merchant, < 94 => FamilyOrigin.Martial, < 98 => FamilyOrigin.Noble, _ => FamilyOrigin.Imperial };
-    }
-
-    private static string SocialStatusFor(FamilyOrigin origin) => origin switch
-    {
-        FamilyOrigin.Imperial => "Impérial", FamilyOrigin.Noble => "Noble", FamilyOrigin.Martial => "Martial", FamilyOrigin.Merchant => "Marchand", FamilyOrigin.Religious => "Religieux", FamilyOrigin.Criminal => "Criminel", FamilyOrigin.Secretive => "Secret", FamilyOrigin.Rural => "Rural", _ => "Commun"
-    };
+    private static FamilyOrigin RollOrigin(Random random) => random.Next(100) switch { < 70 => FamilyOrigin.Common, < 80 => FamilyOrigin.Rural, < 88 => FamilyOrigin.Merchant, < 94 => FamilyOrigin.Martial, < 98 => FamilyOrigin.Noble, _ => FamilyOrigin.Imperial };
+    private static string SocialStatusFor(FamilyOrigin origin) => origin switch { FamilyOrigin.Imperial => "Impérial", FamilyOrigin.Noble => "Noble", FamilyOrigin.Martial => "Martial", FamilyOrigin.Merchant => "Marchand", FamilyOrigin.Religious => "Religieux", FamilyOrigin.Criminal => "Criminel", FamilyOrigin.Secretive => "Secret", FamilyOrigin.Rural => "Rural", _ => "Commun" };
 }
