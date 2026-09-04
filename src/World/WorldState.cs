@@ -9,6 +9,7 @@ public sealed class WorldState
     public Dictionary<Guid, Family> Families { get; } = new();
     public FamilyLifeSystem FamilyLife { get; } = new();
     public AutonomousSocialLifeSystem SocialLife { get; } = new();
+    public SocialRelationshipSystem Relationships { get; } = new();
     public int WorldSeed { get; private set; }
     public Npc? PlayerNpc { get; private set; }
 
@@ -34,6 +35,7 @@ public sealed class WorldState
         {
             FamilyLife.AdvanceDay(this);
             SocialLife.AdvanceDay(this);
+            Relationships.AdvanceDay(this);
         }
     }
 
@@ -51,10 +53,16 @@ public sealed class WorldState
         var parents = parentLife.CreateParentPair(actualFamilyName, culture, region, origin, seed + 1, this);
         family.FatherId = parents.Father.Id;
         family.MotherId = parents.Mother.Id;
+        family.MemberIds.Add(parents.Father.Id);
+        family.MemberIds.Add(parents.Mother.Id);
+        parents.Father.JoinFamily(family.Id);
+        parents.Mother.JoinFamily(family.Id);
         var context = new BirthContext { FamilyId = family.Id, FatherId = parents.Father.Id, MotherId = parents.Mother.Id, Culture = culture, SocialOrigin = actualFamilyName, Region = region };
         var npc = new BirthGenerator().CreateNewborn(context, seed + 2, parents.Father, parents.Mother);
         AddNpc(npc);
         family.ChildrenIds.Add(npc.Id);
+        family.MemberIds.Add(npc.Id);
+        npc.JoinFamily(family.Id);
         FamilyLife.LinkParentChild(parents.Father, npc);
         FamilyLife.LinkParentChild(parents.Mother, npc);
         FamilyLife.LinkSpouses(parents.Father, parents.Mother);
@@ -74,6 +82,8 @@ public sealed class WorldState
         var child = new BirthGenerator().CreateNewborn(context, seed, father, mother);
         AddNpc(child);
         family.ChildrenIds.Add(child.Id);
+        family.MemberIds.Add(child.Id);
+        child.JoinFamily(family.Id);
         father.History.Add("Naissance de l'enfant", father.AgeYears, $"Naissance de {child.Identity.DisplayName}.");
         mother.History.Add("Naissance de l'enfant", mother.AgeYears, $"Naissance de {child.Identity.DisplayName}.");
         return child;
