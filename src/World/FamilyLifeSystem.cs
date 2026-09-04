@@ -12,7 +12,6 @@ public sealed class FamilyLifeSystem
         foreach (var npc in world.Npcs.Values)
         {
             if (!npc.IsAlive) continue;
-            npc.AdvanceDays(1);
             SimulateWorkAndEconomy(npc, world.Time.Day);
         }
 
