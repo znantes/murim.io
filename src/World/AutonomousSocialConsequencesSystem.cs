@@ -3,11 +3,10 @@ namespace Murim.World;
 /// <summary>
 /// Turns ordinary autonomous world activity into social consequences that can be
 /// witnessed, remembered, spread as information, and reflected in reputation.
-/// This system is deliberately lightweight: it never grants the player special protection.
 /// </summary>
 public sealed class AutonomousSocialConsequencesSystem
 {
-    private readonly HashSet<(long Day, Guid EventId)> _processed = new();
+    private readonly HashSet<string> _processed = new();
 
     public List<string> LastEvents { get; } = new();
 
@@ -32,17 +31,16 @@ public sealed class AutonomousSocialConsequencesSystem
             var business = world.Commerce.Businesses.GetValueOrDefault(transaction.BusinessId);
             if (business is null) continue;
 
-            var eventId = transaction.BusinessId;
-            if (!_processed.Add((world.Time.Day, eventId))) continue;
+            var eventKey = $"commerce:{transaction.Day}:{transaction.Minute}:{transaction.BusinessId}:{transaction.BuyerNpcId}:{transaction.SellerNpcId}:{transaction.ItemId}:{transaction.Quantity}";
+            if (!_processed.Add(eventKey)) continue;
 
-            var subject = seller;
             world.Reputation.Apply(world, seller.Id, 0.25, "Local", 1);
             AdjustRelationship(buyer, seller, 0.025, 0.02, 0.02);
             Publish(world, buyer, "Commerce", $"{buyer.Identity.Name} a acheté auprès de {seller.Identity.Name} à {business.Name}.", seller.Id, business.LocationId, InformationReliability.Verified, 0.15);
             Publish(world, seller, "Commerce", $"{seller.Identity.Name} a vendu à {buyer.Identity.Name} à {business.Name}.", seller.Id, business.LocationId, InformationReliability.Verified, 0.15);
             buyer.History.Add("Commerce", buyer.AgeYears, $"Achète à {seller.Identity.Name} dans {business.Name}.");
             seller.History.Add("Commerce", seller.AgeYears, $"Vend à {buyer.Identity.Name} dans {business.Name}.");
-            LastEvents.Add($"Commerce : {buyer.Identity.DisplayName} traite avec {subject.Identity.DisplayName}.");
+            LastEvents.Add($"Commerce : {buyer.Identity.DisplayName} traite avec {seller.Identity.DisplayName}.");
         }
     }
 
@@ -50,11 +48,11 @@ public sealed class AutonomousSocialConsequencesSystem
     {
         foreach (var patient in world.Npcs.Values.Where(n => n.IsAlive && n.Conditions.Count > 0))
         {
-            foreach (var condition in patient.Conditions.Where(c => c.SourceNpcId is not null && c.OnsetDay == world.Time.Day).ToList())
+            foreach (var condition in patient.Conditions.Where(c => c.SourceNpcId is not null && c.OnsetDay == world.Time.Day && !c.Name.Contains("accident", StringComparison.OrdinalIgnoreCase)).ToList())
             {
                 if (condition.SourceNpcId is not Guid sourceId || !world.Npcs.TryGetValue(sourceId, out var source)) continue;
-                var eventId = condition.Id;
-                if (!_processed.Add((world.Time.Day, eventId))) continue;
+                var eventKey = $"injury:{condition.Id}";
+                if (!_processed.Add(eventKey)) continue;
 
                 var hostile = condition.Type is ConditionType.Fracture;
                 var polarity = hostile ? -0.65 : -0.20;
@@ -146,7 +144,7 @@ public sealed class AutonomousSocialConsequencesSystem
         var patient = random.NextDouble() < 0.5 ? first : second;
         var bystander = patient.Id == first.Id ? second : first;
         var severity = 0.12 + random.NextDouble() * 0.20;
-        var condition = world.Medicine.Inflict(patient, ConditionType.Fracture, "Blessure accidentelle", severity, severity, world.Time.Day, false, 14, bystander.Id);
+        world.Medicine.Inflict(patient, ConditionType.Fracture, "Blessure accidentelle", severity, severity, world.Time.Day, false, 14, bystander.Id);
         AdjustRelationship(bystander, patient, -0.02, 0.01, 0.0);
         var text = $"Un accident blesse {patient.Identity.Name} en présence de {bystander.Identity.Name}.";
         patient.History.Add("Accident", patient.AgeYears, text);
@@ -183,6 +181,12 @@ public sealed class AutonomousSocialConsequencesSystem
     private void CleanupProcessed(long beforeDay)
     {
         if (beforeDay <= 0) return;
-        _processed.RemoveWhere(x => x.Day < beforeDay);
+        _processed.RemoveWhere(key => key.StartsWith("commerce:", StringComparison.Ordinal) ? ParseDay(key) < beforeDay : false);
+    }
+
+    private static long ParseDay(string key)
+    {
+        var parts = key.Split(':');
+        return parts.Length > 1 && long.TryParse(parts[1], out var day) ? day : long.MaxValue;
     }
 }
