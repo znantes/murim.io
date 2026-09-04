@@ -24,6 +24,7 @@ public sealed class WorldState
     public MartialTrainingSystem Martial { get; } = new();
     public MartialOrganizationSystem MartialOrganizations { get; } = new();
     public MartialMentorshipSystem Mentorships { get; } = new();
+    public MartialConflictSystem MartialConflicts { get; } = new();
     public int WorldSeed { get; private set; }
     public Npc? PlayerNpc { get; private set; }
 
@@ -46,6 +47,7 @@ public sealed class WorldState
             SocialLife.AdvanceDay(this);
             Relationships.AdvanceDay(this);
             Mentorships.AdvanceDay(this);
+            MartialConflicts.AdvanceDay(this);
         }
     }
 
