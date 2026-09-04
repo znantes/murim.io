@@ -6,6 +6,8 @@ public enum RelationshipType
     Child,
     Sibling,
     Spouse,
+    ExSpouse,
+    RomanticInterest,
     Friend,
     Rival,
     Master,
