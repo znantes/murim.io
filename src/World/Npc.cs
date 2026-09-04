@@ -12,6 +12,7 @@ public sealed class Npc
     public List<Relationship> Relationships { get; } = new();
     public Profession Profession { get; } = new();
     public HashSet<Guid> KnownLocationIds { get; } = new();
+    public Inventory Inventory { get; } = new();
 
     public BirthContext Birth { get; internal set; } = new();
     public Guid? CurrentFamilyId { get; private set; }
@@ -21,26 +22,11 @@ public sealed class Npc
     public bool IsAlive { get; private set; } = true;
     public double Wealth { get; private set; }
 
-    public void AdvanceAge(int years)
-    {
-        if (years < 0) throw new ArgumentOutOfRangeException(nameof(years));
-        AdvanceDays(years * 365);
-    }
-
-    public void AdvanceDays(int days)
-    {
-        if (days < 0) throw new ArgumentOutOfRangeException(nameof(days));
-        AgeDays += days;
-        AgeYears = AgeDays / 365;
-    }
-
+    public void AdvanceAge(int years) { if (years < 0) throw new ArgumentOutOfRangeException(nameof(years)); AdvanceDays(years * 365); }
+    public void AdvanceDays(int days) { if (days < 0) throw new ArgumentOutOfRangeException(nameof(days)); AgeDays += days; AgeYears = AgeDays / 365; }
     public void ApplyWealthChange(double amount) => Wealth = Math.Max(0, Wealth + amount);
-
     public void JoinFamily(Guid familyId) => CurrentFamilyId = familyId;
-
     public void SetLocation(Guid locationId) => CurrentLocationId = locationId;
-
     public void DiscoverLocation(Guid locationId) => KnownLocationIds.Add(locationId);
-
     public void Die() => IsAlive = false;
 }
