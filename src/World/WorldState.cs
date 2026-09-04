@@ -22,6 +22,8 @@ public sealed class WorldState
     public AgingSystem Aging { get; } = new();
     public MedicineSystem Medicine { get; } = new();
     public MartialTrainingSystem Martial { get; } = new();
+    public MartialOrganizationSystem MartialOrganizations { get; } = new();
+    public MartialMentorshipSystem Mentorships { get; } = new();
     public int WorldSeed { get; private set; }
     public Npc? PlayerNpc { get; private set; }
 
@@ -43,6 +45,7 @@ public sealed class WorldState
             FamilyLife.AdvanceDay(this);
             SocialLife.AdvanceDay(this);
             Relationships.AdvanceDay(this);
+            Mentorships.AdvanceDay(this);
         }
     }
 
