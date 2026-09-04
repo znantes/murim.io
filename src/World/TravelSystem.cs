@@ -28,11 +28,9 @@ public sealed class TravelSystem
         ArgumentNullException.ThrowIfNull(npc);
         if (!npc.IsAlive || npc.CurrentLocationId is null || !world.Geography.Locations.ContainsKey(destinationId)) return null;
         if (!npc.KnownLocationIds.Contains(destinationId)) return null;
-
         var from = npc.CurrentLocationId.Value;
         var distance = world.Geography.GetRouteDistance(from, destinationId);
         if (double.IsInfinity(distance)) return null;
-
         var speed = method switch
         {
             MovementMethod.Horse => 12.0,
@@ -42,21 +40,17 @@ public sealed class TravelSystem
             _ => Math.Max(4.0, 3.0 + npc.Body.Endurance * 0.05)
         };
         var duration = Math.Max(1, (int)Math.Ceiling(distance / speed * 60.0));
-        return new TravelPlan
-        {
-            NpcId = npc.Id, FromLocationId = from, ToLocationId = destinationId,
-            Method = method, DistanceKm = distance, DurationMinutes = duration,
-            DangerLevel = world.Geography.Locations[destinationId].DangerLevel
-        };
+        return new TravelPlan { NpcId = npc.Id, FromLocationId = from, ToLocationId = destinationId, Method = method, DistanceKm = distance, DurationMinutes = duration, DangerLevel = world.Geography.Locations[destinationId].DangerLevel };
     }
 
     public bool Execute(WorldState world, TravelPlan plan)
     {
         if (!world.Npcs.TryGetValue(plan.NpcId, out var npc) || !npc.IsAlive) return false;
         if (npc.CurrentLocationId != plan.FromLocationId || !npc.KnownLocationIds.Contains(plan.ToLocationId)) return false;
-        world.AdvanceMinutes(plan.DurationMinutes);
+        var effectiveMinutes = EnvironmentEffects.TravelMinutes(world, plan);
+        world.AdvanceMinutes(effectiveMinutes);
         npc.SetLocation(plan.ToLocationId);
-        npc.History.Add("Déplacement", npc.AgeYears, $"Voyage vers {world.Geography.Locations[plan.ToLocationId].Name} ({plan.DistanceKm:0.#} km, {plan.Method}).");
+        npc.History.Add("Déplacement", npc.AgeYears, $"Voyage vers {world.Geography.Locations[plan.ToLocationId].Name} ({plan.DistanceKm:0.#} km, {plan.Method}, météo: {world.Environment.Get(plan.ToLocationId).Weather}).");
         return true;
     }
 }
