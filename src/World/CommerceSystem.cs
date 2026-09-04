@@ -26,7 +26,7 @@ public sealed class CommerceSystem
     {
         foreach(var b in _businesses.Values.Where(x=>x.Active).ToList())
         {
-            var revenue=Transactions.Where(t=>t.BusinessId==b.Id&&t.Day==world.Time.Day).Sum(t=>t.UnitPrice*t.Quantity); var payroll=b.StaffNpcIds.Select(id=>world.Employment.Contracts.TryGetValue(id,out var c)?c.WagePerHour*Math.Min(c.HoursPerDay,8):0).Sum(); var rent=Math.Max(.05,b.Type==CommerceType.MerchantHouse?.35:.12); var profit=revenue-payroll-rent; b.Capital+=profit;
+            var revenue=Transactions.Where(t=>t.BusinessId==b.Id&&t.Day==world.Time.Day).Sum(t=>t.UnitPrice*t.Quantity); var payroll=b.StaffNpcIds.Select(id=>world.Employment.Contracts.TryGetValue(id,out var c)?c.WagePerHour*Math.Min(c.HoursPerDay,8):0).Sum(); var rent=Math.Max(.05,b.Type==CommerceType.MerchantHouse ? .35 : .12); var profit=revenue-payroll-rent; b.Capital+=profit;
             b.Prosperity=Math.Clamp(b.Prosperity+profit*2-(b.StaffNpcIds.Count==0?1:0),0,100); b.Reputation=Math.Clamp(b.Reputation+(profit>=0?.2:-.4),0,100); Accounts.Add(new BusinessAccount{Day=world.Time.Day,Revenue=revenue,Costs=payroll+rent,Profit=profit,Capital=b.Capital}); if(profit<0)b.ConsecutiveLossDays++;else b.ConsecutiveLossDays=0;
             foreach(var s in b.Stock){var missing=Math.Max(0,(int)Math.Round(s.TargetQuantity-s.Quantity-world.Logistics.InTransitQuantity(b.Id,s.ItemId)));if(missing>0)world.Logistics.CreateOrder(world,b,s.ItemId,missing);}
             if(b.Capital<-5||b.ConsecutiveLossDays>=14){b.Active=false;b.Reputation=Math.Max(0,b.Reputation-20);foreach(var id in b.StaffNpcIds.ToList())if(world.Npcs.TryGetValue(id,out var employee))world.Employment.Fire(world,employee,out _);b.StaffNpcIds.Clear();}
