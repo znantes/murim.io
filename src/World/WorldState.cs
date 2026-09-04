@@ -10,6 +10,8 @@ public sealed class WorldState
     public FamilyLifeSystem FamilyLife { get; } = new();
     public AutonomousSocialLifeSystem SocialLife { get; } = new();
     public SocialRelationshipSystem Relationships { get; } = new();
+    public GeographySystem Geography { get; } = new();
+    public TravelSystem Travel { get; } = new();
     public int WorldSeed { get; private set; }
     public Npc? PlayerNpc { get; private set; }
 
@@ -42,13 +44,15 @@ public sealed class WorldState
     public Npc CreatePlayerAtBirth(int seed, string familyName = "Unknown", FamilyOrigin? forcedOrigin = null)
     {
         WorldSeed = seed;
+        Geography.GenerateStarterRegion(seed);
+        var home = Geography.Locations.Values.First(l => l.Type == LocationType.Village);
         var random = new Random(seed);
         var origin = forcedOrigin ?? RollOrigin(random);
         var actualFamilyName = origin == FamilyOrigin.Imperial ? $"Maison impériale {familyName}" : familyName;
         var family = new Family { Name = actualFamilyName, Origin = origin, SocialStatus = SocialStatusFor(origin) };
         AddFamily(family);
         const string culture = "Unknown";
-        const string region = "Unknown";
+        const string region = "Région du Berceau";
         var parentLife = new ParentLifeGenerator();
         var parents = parentLife.CreateParentPair(actualFamilyName, culture, region, origin, seed + 1, this);
         family.FatherId = parents.Father.Id;
@@ -63,12 +67,19 @@ public sealed class WorldState
         family.ChildrenIds.Add(npc.Id);
         family.MemberIds.Add(npc.Id);
         npc.JoinFamily(family.Id);
+        foreach (var location in Geography.Locations.Values.Where(l => l.Type is LocationType.Village or LocationType.Town or LocationType.Market))
+            npc.DiscoverLocation(location.Id);
+        npc.SetLocation(home.Id);
+        parents.Father.DiscoverLocation(home.Id);
+        parents.Mother.DiscoverLocation(home.Id);
+        parents.Father.SetLocation(home.Id);
+        parents.Mother.SetLocation(home.Id);
         FamilyLife.LinkParentChild(parents.Father, npc);
         FamilyLife.LinkParentChild(parents.Mother, npc);
         FamilyLife.LinkSpouses(parents.Father, parents.Mother);
         parents.Father.History.Add("Naissance de l'enfant", parents.Father.AgeYears, $"Naissance de {npc.Identity.DisplayName}.");
         parents.Mother.History.Add("Naissance de l'enfant", parents.Mother.AgeYears, $"Naissance de {npc.Identity.DisplayName}.");
-        npc.History.Add("Naissance", 0, $"Naissance au sein de la famille {family.Name}.");
+        npc.History.Add("Naissance", 0, $"Naissance au sein de la famille {family.Name}, à {home.Name}.");
         PlayerNpc = npc;
         return npc;
     }
@@ -84,6 +95,11 @@ public sealed class WorldState
         family.ChildrenIds.Add(child.Id);
         family.MemberIds.Add(child.Id);
         child.JoinFamily(family.Id);
+        if (father.CurrentLocationId is Guid locationId)
+        {
+            child.SetLocation(locationId);
+            child.DiscoverLocation(locationId);
+        }
         father.History.Add("Naissance de l'enfant", father.AgeYears, $"Naissance de {child.Identity.DisplayName}.");
         mother.History.Add("Naissance de l'enfant", mother.AgeYears, $"Naissance de {child.Identity.DisplayName}.");
         return child;
