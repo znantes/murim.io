@@ -1,0 +1,35 @@
+namespace Murim.World;
+
+public sealed class ProductionInput { public Guid ItemId { get; init; } public int Quantity { get; init; } }
+public sealed class ProductionOutput { public Guid ItemId { get; init; } public int Quantity { get; init; } }
+public sealed class ProductionRecipe { public Guid Id { get; } = Guid.NewGuid(); public string Name { get; init; } = "Production"; public List<ProductionInput> Inputs { get; } = new(); public List<ProductionOutput> Outputs { get; } = new(); public int RequiredSkill { get; init; } public int Minutes { get; init; } = 120; public BuildingType Facility { get; init; } = BuildingType.Workshop; }
+public sealed class ProductionSite { public Guid Id { get; } = Guid.NewGuid(); public string Name { get; init; } = "Atelier"; public Guid LocationId { get; init; } public Guid BuildingId { get; init; } public Guid OwnerNpcId { get; init; } public Guid? BusinessId { get; init; } public Guid RecipeId { get; set; } public int Capacity { get; init; } = 1; public double Efficiency { get; set; } = 1; public bool Active { get; set; } = true; }
+public sealed class ProductionRecord { public long Day { get; init; } public Guid SiteId { get; init; } public string Recipe { get; init; } = ""; public int Units { get; init; } public double Efficiency { get; init; } public bool Success { get; init; } public string Note { get; init; } = ""; }
+public sealed class ProductionSystem
+{
+    private readonly Dictionary<Guid, ProductionRecipe> _recipes = new();
+    private readonly Dictionary<Guid, ProductionSite> _sites = new();
+    public IReadOnlyDictionary<Guid, ProductionRecipe> Recipes => _recipes;
+    public IReadOnlyDictionary<Guid, ProductionSite> Sites => _sites;
+    public List<ProductionRecord> History { get; } = new();
+    public ProductionRecipe RegisterRecipe(string name, BuildingType facility, int minutes, int skill, IEnumerable<ProductionInput> inputs, IEnumerable<ProductionOutput> outputs)
+    { var r = new ProductionRecipe { Name=name, Facility=facility, Minutes=Math.Max(30,minutes), RequiredSkill=Math.Clamp(skill,0,100) }; r.Inputs.AddRange(inputs); r.Outputs.AddRange(outputs); _recipes[r.Id]=r; return r; }
+    public ProductionSite RegisterSite(string name, Guid locationId, Guid buildingId, Guid ownerNpcId, Guid recipeId, Guid? businessId=null, int capacity=1)
+    { var s=new ProductionSite { Name=name, LocationId=locationId, BuildingId=buildingId, OwnerNpcId=ownerNpcId, RecipeId=recipeId, BusinessId=businessId, Capacity=Math.Max(1,capacity) }; _sites[s.Id]=s; return s; }
+    public void AdvanceDay(WorldState world)
+    {
+        foreach (var s in _sites.Values.Where(x=>x.Active).ToList())
+        {
+            if (!_recipes.TryGetValue(s.RecipeId,out var r) || !world.Buildings.TryGet(s.BuildingId,out var b) || b is null) continue;
+            if (!world.Npcs.TryGetValue(s.OwnerNpcId,out var owner) || !owner.IsAlive) continue;
+            var skill=Math.Clamp(owner.Profession.Skill,0,100); var factor=.65 + skill/200.0; var units=Math.Max(1,(int)Math.Floor(s.Capacity*Math.Clamp(s.Efficiency*factor,.1,1.35))); var possible=units;
+            foreach(var input in r.Inputs){var available=owner.Inventory.Entries.FirstOrDefault(e=>e.ItemId==input.ItemId)?.Quantity??0; possible=Math.Min(possible,available/Math.Max(1,input.Quantity));}
+            if(possible<=0){History.Add(new ProductionRecord{Day=world.Time.Day,SiteId=s.Id,Recipe=r.Name,Efficiency=factor,Success=false,Note="Intrants insuffisants."});continue;}
+            foreach(var i in r.Inputs) owner.Inventory.Remove(i.ItemId,i.Quantity*possible);
+            foreach(var o in r.Outputs) if(world.Inventory.Items.TryGetValue(o.ItemId,out var item)) owner.Inventory.Add(item,o.Quantity*possible);
+            s.Efficiency=Math.Clamp(s.Efficiency+(skill>=r.RequiredSkill ? .01 : -.02),.5,1.2);
+            History.Add(new ProductionRecord{Day=world.Time.Day,SiteId=s.Id,Recipe=r.Name,Units=possible,Efficiency=factor,Success=true,Note=$"{owner.Identity.Name} produit {possible} unité(s)."});
+        }
+    }
+    public string DescribeSite(WorldState world, ProductionSite site) => _recipes.TryGetValue(site.RecipeId,out var r) ? $"{site.Name} — {r.Name}, capacité {site.Capacity}, efficacité {site.Efficiency:P0}." : $"{site.Name} — recette inconnue.";
+}
