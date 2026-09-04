@@ -10,8 +10,11 @@ public sealed class FamilyLifeSystem
         LastEvents.Clear();
 
         foreach (var npc in world.Npcs.Values)
-            if (npc.IsAlive)
-                npc.AdvanceDays(1);
+        {
+            if (!npc.IsAlive) continue;
+            npc.AdvanceDays(1);
+            SimulateWorkAndEconomy(npc, world.Time.Day);
+        }
 
         foreach (var family in world.Families.Values.ToList())
             SimulateFamilyDay(world, family);
@@ -52,10 +55,63 @@ public sealed class FamilyLifeSystem
         TryFamilyConflict(father, mother, world.Time.Day, world.WorldSeed);
     }
 
+    private void SimulateWorkAndEconomy(Npc npc, long day)
+    {
+        if (npc.AgeYears < 12) return;
+        if (npc.AgeYears < 18)
+        {
+            npc.ApplyWealthChange(-npc.Profession.DailyExpense * 0.25);
+            return;
+        }
+
+        if (npc.Profession.Type == ProfessionType.None)
+            AssignProfession(npc, day);
+
+        var productivity = 0.70 + npc.Profession.Skill / 100.0 * 0.60;
+        var income = npc.Profession.DailyIncome * productivity;
+        npc.ApplyWealthChange(income - npc.Profession.DailyExpense);
+
+        if (day % 30 == 0)
+            npc.History.Add("Travail", npc.AgeYears, $"Travaille comme {ProfessionName(npc.Profession.Type)} et gère ses ressources.");
+    }
+
+    private static void AssignProfession(Npc npc, long day)
+    {
+        var random = DeterministicRandom(day.GetHashCode(), npc.Id, day / 30);
+        var type = random.Next(100) switch
+        {
+            < 18 => ProfessionType.Farmer,
+            < 30 => ProfessionType.Craftsman,
+            < 40 => ProfessionType.Merchant,
+            < 50 => ProfessionType.Servant,
+            < 58 => ProfessionType.Guard,
+            < 65 => ProfessionType.Hunter,
+            < 72 => ProfessionType.Scholar,
+            < 79 => ProfessionType.Healer,
+            < 86 => ProfessionType.Courier,
+            < 93 => ProfessionType.MartialPractitioner,
+            _ => ProfessionType.Fisher
+        };
+
+        npc.Profession.Type = type;
+        npc.Profession.Skill = random.Next(15, 56);
+        npc.Profession.DailyIncome = type switch
+        {
+            ProfessionType.Merchant => 3.0,
+            ProfessionType.Healer or ProfessionType.Scholar => 2.6,
+            ProfessionType.Craftsman => 2.4,
+            ProfessionType.Guard or ProfessionType.MartialPractitioner => 2.2,
+            ProfessionType.Courier => 2.0,
+            _ => 1.5
+        };
+        npc.Profession.DailyExpense = 0.7 + random.NextDouble() * 0.8;
+        npc.ApplyWealthChange(2.0 + random.NextDouble() * 8.0);
+        npc.History.Add("Profession", npc.AgeYears, $"Commence une activité comme {ProfessionName(type)}.");
+    }
+
     private void TryBirth(WorldState world, Family family, Npc father, Npc mother)
     {
         if (family.ChildrenIds.Count >= 8 || father.AgeYears > 65 || mother.AgeYears > 50) return;
-
         var random = DeterministicRandom(world.WorldSeed, father.Id, world.Time.Day);
         if (random.NextDouble() >= 0.0025) return;
 
@@ -69,7 +125,6 @@ public sealed class FamilyLifeSystem
     {
         var relationship = first.Relationships.FirstOrDefault(r => r.ToNpcId == second.Id && r.Type == RelationshipType.Spouse && r.IsActive);
         if (relationship is null) return;
-
         var random = DeterministicRandom(worldSeed + 17, first.Id, day);
         if (random.NextDouble() >= 0.003) return;
 
@@ -97,13 +152,32 @@ public sealed class FamilyLifeSystem
             var random = DeterministicRandom(world.WorldSeed + 91, npc.Id, world.Time.Day);
             var chance = Math.Min(0.30, 0.01 + (npc.AgeYears - 90) * 0.06);
             if (random.NextDouble() >= chance) continue;
-
             npc.Die();
             npc.History.Add("Décès", npc.AgeYears, "Meurt de causes naturelles.");
             LastEvents.Add($"Décès naturel de {npc.Identity.DisplayName}, à {npc.AgeYears} ans.");
             foreach (var relation in npc.Relationships) relation.IsActive = false;
         }
     }
+
+    private static string ProfessionName(ProfessionType type) => type switch
+    {
+        ProfessionType.Farmer => "agriculteur",
+        ProfessionType.Hunter => "chasseur",
+        ProfessionType.Craftsman => "artisan",
+        ProfessionType.Merchant => "marchand",
+        ProfessionType.Guard => "garde",
+        ProfessionType.Soldier => "soldat",
+        ProfessionType.Healer => "soigneur",
+        ProfessionType.Scholar => "érudit",
+        ProfessionType.Servant => "serviteur",
+        ProfessionType.Fisher => "pêcheur",
+        ProfessionType.Courier => "messager",
+        ProfessionType.MartialPractitioner => "pratiquant martial",
+        ProfessionType.Official => "fonctionnaire",
+        ProfessionType.Teacher => "enseignant",
+        ProfessionType.Criminal => "criminel",
+        _ => "sans profession"
+    };
 
     private static Random DeterministicRandom(int worldSeed, Guid npcId, long day)
     {
