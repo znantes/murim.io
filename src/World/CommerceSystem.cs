@@ -31,6 +31,7 @@ public sealed class CommerceBusiness
     public bool OpenAfternoon { get; init; } = true;
     public bool OpenEvening { get; init; }
     public bool OpenNight { get; init; }
+    public List<Guid> StaffNpcIds { get; } = new();
     public List<ShopStock> Stock { get; } = new();
 
     public bool IsOpen(TimePeriod period) => period switch
@@ -61,11 +62,16 @@ public sealed class CommerceSystem
     public IReadOnlyDictionary<Guid, CommerceBusiness> Businesses => _businesses;
     public List<CommerceTransaction> Transactions { get; } = new();
 
-    public CommerceBusiness AddBusiness(string name, CommerceType type, Guid locationId, Guid ownerNpcId, bool evening = false)
+    public CommerceBusiness AddBusiness(string name, CommerceType type, Guid locationId, Guid ownerNpcId, bool evening = false, Guid? buildingId = null)
     {
-        var business = new CommerceBusiness { Name = name, Type = type, LocationId = locationId, OwnerNpcId = ownerNpcId, OpenEvening = evening };
+        var business = new CommerceBusiness { Name = name, Type = type, LocationId = locationId, OwnerNpcId = ownerNpcId, OpenEvening = evening, BuildingId = buildingId };
         _businesses[business.Id] = business;
         return business;
+    }
+
+    public void AddStaff(CommerceBusiness business, Guid npcId)
+    {
+        if (!business.StaffNpcIds.Contains(npcId)) business.StaffNpcIds.Add(npcId);
     }
 
     public void AddStock(CommerceBusiness business, Guid itemId, int quantity, double priceMultiplier = 1.0)
@@ -105,6 +111,6 @@ public sealed class CommerceSystem
     public string Describe(WorldState world, CommerceBusiness business)
     {
         var entries = business.Stock.Where(s => s.Quantity > 0).Select(s => world.Inventory.Items.TryGetValue(s.ItemId, out var item) ? $"{item.Name} ({CurrentPrice(world, business, s):0.##}, stock {s.Quantity})" : null).Where(x => x is not null).Take(8);
-        return $"{business.Name} — {(business.IsOpen(world.Time.Period) ? "ouvert" : "fermé")} : {string.Join(", ", entries)}";
+        return $"{business.Name} — {(business.IsOpen(world.Time.Period) ? "ouvert" : "fermé")} : {string.Join(", ", entries)} ; personnel {business.StaffNpcIds.Count}.";
     }
 }
