@@ -24,37 +24,35 @@ public sealed class CommandInterpreter
         if (Matches(text, "dors", "dormir", "dors ici", "repose toi", "reposes toi", "va dormir"))
             return new() { Success = true, Intent = PlayerCommandIntent.Sleep, RawInput = raw, Feedback = "Repos." };
 
-        var travel = ExtractAfter(text, "va a", "vas a", "aller a", "rends toi a", "rends toi au", "rends toi a la", "dirige toi vers", "pars pour", "voyage vers");
+        var travel = ExtractAfter(text, "rends toi au", "rends toi a la", "rends toi a", "va au", "va a", "vas au", "vas a", "aller au", "aller a", "dirige toi vers", "pars pour", "voyage vers");
         if (travel is not null)
         {
             var method = text.Contains("a cheval", StringComparison.Ordinal) ? MovementMethod.Horse :
                 text.Contains("en charrette", StringComparison.Ordinal) ? MovementMethod.Cart :
                 text.Contains("en bateau", StringComparison.Ordinal) ? MovementMethod.Boat :
                 text.Contains("mouvement martial", StringComparison.Ordinal) ? MovementMethod.MartialMovement : MovementMethod.Walk;
-            travel = CleanTarget(travel);
+            travel = CleanTarget(travel.Replace(" a cheval", "", StringComparison.Ordinal).Replace(" en charrette", "", StringComparison.Ordinal).Replace(" en bateau", "", StringComparison.Ordinal).Replace(" mouvement martial", "", StringComparison.Ordinal));
             var location = ResolveLocation(world, travel);
             return location is null
                 ? Fail(raw, $"Je ne connais pas le lieu « {travel} », ou ton personnage ne le connaît pas.", PlayerCommandIntent.Travel, travel)
                 : new() { Success = true, Intent = PlayerCommandIntent.Travel, RawInput = raw, TargetText = travel, TargetLocationId = location.Id, MovementMethod = method, Feedback = $"Destination : {location.Name}." };
         }
 
-        var talk = ExtractAfter(text, "parle a", "parle au", "parle avec", "parler a", "parler avec", "discute avec", "discute a");
+        var talk = ExtractAfter(text, "parle au", "parle a", "parle avec", "parler au", "parler a", "parler avec", "discute avec", "discute a");
         if (talk is not null)
         {
             talk = CleanTarget(talk);
             var npc = ResolveNpc(world, talk);
-            return npc is null
-                ? Fail(raw, $"Je ne trouve pas de personne correspondante : « {talk} ».", PlayerCommandIntent.Talk, talk)
+            return npc is null ? Fail(raw, $"Je ne trouve pas de personne correspondante : « {talk} ».", PlayerCommandIntent.Talk, talk)
                 : new() { Success = true, Intent = PlayerCommandIntent.Talk, RawInput = raw, TargetText = talk, TargetNpcId = npc.Id, Feedback = $"Conversation avec {npc.Identity.DisplayName}." };
         }
 
-        var train = ExtractAfter(text, "entraine toi", "entraine toi a", "entraine toi avec", "pratique", "entraînement", "entrainement");
+        var train = ExtractAfter(text, "entraine toi avec", "entraine toi a", "entraine toi", "pratique", "entrainement");
         if (train is not null)
         {
-            train = CleanTarget(train);
+            train = CleanTarget(train).Replace("a ", "", StringComparison.Ordinal);
             var technique = world.Martial.Techniques.Values.FirstOrDefault(t => Normalize(t.Name) == train || Normalize(t.Name).Contains(train, StringComparison.Ordinal));
-            return technique is null
-                ? Fail(raw, $"Technique inconnue : « {train} ».", PlayerCommandIntent.Train, train)
+            return technique is null ? Fail(raw, $"Technique inconnue : « {train} ».", PlayerCommandIntent.Train, train)
                 : new() { Success = true, Intent = PlayerCommandIntent.Train, RawInput = raw, TargetText = train, TargetTechniqueId = technique.Id, Feedback = $"Entraînement : {technique.Name}." };
         }
 
