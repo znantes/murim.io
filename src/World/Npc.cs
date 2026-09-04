@@ -12,7 +12,9 @@ public sealed class Npc
     public List<Relationship> Relationships { get; } = new();
     public Profession Profession { get; } = new();
     public HashSet<Guid> KnownLocationIds { get; } = new();
+    public List<KnowledgeEntry> Knowledge { get; } = new();
     public Inventory Inventory { get; } = new();
+    public Needs Needs { get; } = new();
 
     public BirthContext Birth { get; internal set; } = new();
     public Guid? CurrentFamilyId { get; private set; }
@@ -28,5 +30,11 @@ public sealed class Npc
     public void JoinFamily(Guid familyId) => CurrentFamilyId = familyId;
     public void SetLocation(Guid locationId) => CurrentLocationId = locationId;
     public void DiscoverLocation(Guid locationId) => KnownLocationIds.Add(locationId);
+    public void Learn(KnowledgeEntry entry)
+    {
+        var existing = Knowledge.FirstOrDefault(k => k.EntityId == entry.EntityId && k.Kind == entry.Kind);
+        if (existing is null) Knowledge.Add(entry);
+        else existing.Confidence = Math.Max(existing.Confidence, entry.Confidence);
+    }
     public void Die() => IsAlive = false;
 }
