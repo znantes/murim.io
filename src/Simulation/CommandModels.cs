@@ -5,7 +5,7 @@ namespace Murim.Simulation;
 public enum PlayerCommandIntent
 {
     Unknown, Observe, Travel, Talk, Train, Eat, Drink, Sleep, InspectSelf,
-    AskDirections, Follow, Help, Refuse, Examine, Enter, Work, Buy, Sell, Investigate, DetectDanger
+    AskDirections, Follow, Help, Refuse, Examine, Enter, Exit, Work, Buy, Sell, Investigate, DetectDanger
 }
 
 public sealed class CommandParseResult
@@ -18,6 +18,7 @@ public sealed class CommandParseResult
     public Guid? TargetNpcId { get; init; }
     public Guid? TargetItemId { get; init; }
     public Guid? TargetTechniqueId { get; init; }
+    public Guid? TargetBuildingId { get; init; }
     public MovementMethod MovementMethod { get; init; } = MovementMethod.Walk;
     public string Feedback { get; init; } = string.Empty;
 }
