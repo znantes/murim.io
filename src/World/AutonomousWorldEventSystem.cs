@@ -53,8 +53,8 @@ public sealed class AutonomousWorldEventSystem
 
         if (AreFamilyRelations(first, second))
         {
-            AddMemory(first, second, "Reconnaît un membre de sa famille lors d'une rencontre.");
-            AddMemory(second, first, "Reconnaît un membre de sa famille lors d'une rencontre.");
+            AddMemory(first, "Reconnaît un membre de sa famille lors d'une rencontre.");
+            AddMemory(second, "Reconnaît un membre de sa famille lors d'une rencontre.");
             return;
         }
 
@@ -79,21 +79,22 @@ public sealed class AutonomousWorldEventSystem
         var delta = warmth >= 0.55 ? 0.05 : warmth < 0.25 ? -0.06 : 0.015;
         var trustDelta = warmth >= 0.55 ? 0.025 : warmth < 0.25 ? -0.03 : 0.01;
         existing.Shift(delta, trustDelta, delta * 0.5);
-        FindReverse(second, first)?.Shift(delta, trustDelta, delta * 0.5);
+        var reverse = FindReverse(second, first);
+        reverse?.Shift(delta, trustDelta, delta * 0.5);
 
         if (existing.Type == RelationshipType.Acquaintance && existing.Affinity >= 0.45 && existing.Trust >= 0.35)
         {
             existing.Type = RelationshipType.Friend;
-            FindReverse(second, first)?.Type = RelationshipType.Friend;
+            if (reverse is not null) reverse.Type = RelationshipType.Friend;
         }
         else if (existing.Type == RelationshipType.Acquaintance && existing.Affinity <= -0.20)
         {
             existing.Type = RelationshipType.Rival;
-            FindReverse(second, first)?.Type = RelationshipType.Rival;
+            if (reverse is not null) reverse.Type = RelationshipType.Rival;
         }
 
         RecordMemory(first, second, before, existing.Type);
-        RecordMemory(second, first, before, FindReverse(second, first)?.Type ?? existing.Type);
+        RecordMemory(second, first, before, reverse?.Type ?? existing.Type);
     }
 
     private static void RecordReaction(Npc observer, Npc other, RelationshipType type)
@@ -104,7 +105,7 @@ public sealed class AutonomousWorldEventSystem
             RelationshipType.Rival => $"Se montre méfiant envers {other.Identity.Name}.",
             _ => $"Observe {other.Identity.Name} et fait connaissance."
         };
-        AddMemory(observer, other, description);
+        AddMemory(observer, description);
     }
 
     private static void RecordMemory(Npc observer, Npc other, RelationshipType before, RelationshipType after)
@@ -112,10 +113,10 @@ public sealed class AutonomousWorldEventSystem
         var description = before == after
             ? $"Échange avec {other.Identity.Name}; le lien évolue légèrement."
             : $"Après un échange avec {other.Identity.Name}, le lien devient {after}.";
-        AddMemory(observer, other, description);
+        AddMemory(observer, description);
     }
 
-    private static void AddMemory(Npc observer, Npc other, string description)
+    private static void AddMemory(Npc observer, string description)
     {
         observer.History.Add("Interaction sociale", observer.AgeYears, description);
     }
