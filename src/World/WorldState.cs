@@ -12,6 +12,7 @@ public sealed class WorldState
     public SocialRelationshipSystem Relationships { get; } = new();
     public GeographySystem Geography { get; } = new();
     public TravelSystem Travel { get; } = new();
+    public EnvironmentSystem Environment { get; } = new();
     public int WorldSeed { get; private set; }
     public Npc? PlayerNpc { get; private set; }
 
@@ -35,6 +36,7 @@ public sealed class WorldState
         var elapsedDays = Time.Day - oldDay;
         for (var i = 0L; i < elapsedDays; i++)
         {
+            Environment.AdvanceDay(this, WorldSeed);
             FamilyLife.AdvanceDay(this);
             SocialLife.AdvanceDay(this);
             Relationships.AdvanceDay(this);
@@ -45,6 +47,7 @@ public sealed class WorldState
     {
         WorldSeed = seed;
         Geography.GenerateStarterRegion(seed);
+        foreach (var location in Geography.Locations.Values) Environment.Get(location.Id);
         var home = Geography.Locations.Values.First(l => l.Type == LocationType.Village);
         var random = new Random(seed);
         var origin = forcedOrigin ?? RollOrigin(random);
