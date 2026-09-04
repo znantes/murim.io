@@ -27,7 +27,14 @@ public partial class Main : Node
         PrintHistory("Father history", father);
         PrintHistory("Mother history", mother);
         GD.Print($"Origin family branches: {_world.Families.Count - 1}");
-        GD.Print($"Living NPCs generated: {_world.Npcs.Count}");
+        GD.Print($"Living NPCs generated: {_world.Npcs.Values.Count(n => n.IsAlive)}");
+
+        // The world keeps living even while the player does nothing.
+        _world.AdvanceMinutes(120);
+        GD.Print($"After autonomous simulation — Day {_world.Time.Day}, {_world.Time.Period}");
+        GD.Print($"Autonomous events: {_world.FamilyLife.LastEvents.Count}");
+        foreach (var eventText in _world.FamilyLife.LastEvents)
+            GD.Print($"[WORLD] {eventText}");
     }
 
     private static void PrintHistory(string label, Npc npc)
