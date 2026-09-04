@@ -18,6 +18,7 @@ public sealed class WorldState
     public ExplorationSystem Exploration { get; } = new();
     public PerceptionSystem Perception { get; } = new();
     public InventorySystem Inventory { get; } = new();
+    public SurvivalSystem Survival { get; } = new();
     public int WorldSeed { get; private set; }
     public Npc? PlayerNpc { get; private set; }
 
@@ -27,6 +28,7 @@ public sealed class WorldState
     public void AdvanceMinutes(int minutes)
     {
         if (minutes < 0) throw new ArgumentOutOfRangeException(nameof(minutes));
+        Survival.Advance(this, minutes);
         var oldDay = Time.Day;
         Time.AdvanceMinutes(minutes);
         var elapsedDays = Time.Day - oldDay;
