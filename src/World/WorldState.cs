@@ -25,6 +25,7 @@ public sealed class WorldState
     public MartialOrganizationSystem MartialOrganizations { get; } = new();
     public MartialMentorshipSystem Mentorships { get; } = new();
     public MartialConflictSystem MartialConflicts { get; } = new();
+    public MartialTerritorySystem MartialTerritories { get; } = new();
     public int WorldSeed { get; private set; }
     public Npc? PlayerNpc { get; private set; }
 
@@ -48,6 +49,7 @@ public sealed class WorldState
             Relationships.AdvanceDay(this);
             Mentorships.AdvanceDay(this);
             MartialConflicts.AdvanceDay(this);
+            MartialTerritories.AdvanceDay(this);
         }
     }
 
@@ -56,6 +58,13 @@ public sealed class WorldState
         WorldSeed = seed;
         Geography.GenerateStarterRegion(seed);
         foreach (var location in Geography.Locations.Values) Environment.Get(location.Id);
+        foreach (var location in Geography.Locations.Values)
+        {
+            var authority = location.Type is LocationType.Fortress or LocationType.City or LocationType.Capital
+                ? TerritorialAuthority.Imperial
+                : TerritorialAuthority.Independent;
+            MartialTerritories.Register(location.Id, authority, null, location.Type == LocationType.Fortress ? 60 : 10, 0, this);
+        }
         RegisterStarterItems();
         RegisterStarterMartialArts();
         var home = Geography.Locations.Values.First(l => l.Type == LocationType.Village);
