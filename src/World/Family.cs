@@ -23,4 +23,5 @@ public sealed class Family
     public Guid? MotherId { get; set; }
     public Guid? ParentFamilyId { get; set; }
     public List<Guid> ChildrenIds { get; } = new();
+    public List<Guid> MemberIds { get; } = new();
 }
