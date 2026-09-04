@@ -4,6 +4,8 @@ namespace Murim.Simulation;
 
 public sealed class ActionSystem
 {
+    private readonly ObservationSystem _observations = new();
+
     public ActionResult Execute(WorldState world, CommandParseResult command)
     {
         ArgumentNullException.ThrowIfNull(world);
@@ -18,7 +20,7 @@ public sealed class ActionSystem
             return command.Intent switch
             {
                 PlayerCommandIntent.Travel => Travel(world, player, command),
-                PlayerCommandIntent.Observe => Observe(world, player, command),
+                PlayerCommandIntent.Observe => Observe(world, player),
                 PlayerCommandIntent.Talk => Talk(world, player, command),
                 PlayerCommandIntent.Train => Train(world, player, command),
                 PlayerCommandIntent.Eat => Consume(world, player, command, false),
@@ -43,13 +45,13 @@ public sealed class ActionSystem
         return Ok(command.Intent, plan.DurationMinutes, $"Tu arrives à {world.Geography.Locations[destination].Name} après environ {plan.DurationMinutes} minutes de voyage.");
     }
 
-    private static ActionResult Observe(WorldState world, Npc player, CommandParseResult command)
+    private ActionResult Observe(WorldState world, Npc player)
     {
         const int minutes = 10;
+        var observation = _observations.Observe(world, player);
         world.AdvanceMinutes(minutes);
-        var locationName = player.CurrentLocationId is Guid id && world.Geography.Locations.TryGetValue(id, out var location) ? location.Name : "un lieu inconnu";
-        player.History.Add("Observation", player.AgeYears, $"Observe les alentours à {locationName}.");
-        return Ok(command.Intent, minutes, $"Tu observes attentivement les alentours de {locationName}. Le monde continue d'évoluer pendant ce temps.");
+        player.History.Add("Observation", player.AgeYears, $"Observe les alentours à {observation.LocationName}.");
+        return Ok(PlayerCommandIntent.Observe, minutes, ObservationFormatter.ToText(observation));
     }
 
     private static ActionResult Talk(WorldState world, Npc player, CommandParseResult command)
@@ -82,7 +84,6 @@ public sealed class ActionSystem
         if (drink && item.Category != ItemCategory.Food && item.Category != ItemCategory.Miscellaneous)
             return Fail(command.Intent, $"{item.Name} ne peut pas être utilisé comme boisson.");
         if (!drink && item.Category != ItemCategory.Food) return Fail(command.Intent, $"{item.Name} n'est pas un aliment.");
-
         player.Inventory.Remove(itemId);
         const int minutes = 5;
         world.AdvanceMinutes(minutes);
