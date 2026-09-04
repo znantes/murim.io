@@ -10,11 +10,13 @@ public sealed class Npc
     public InheritanceProfile Inheritance { get; } = new();
     public LifeHistory History { get; } = new();
     public List<Relationship> Relationships { get; } = new();
+    public Profession Profession { get; } = new();
 
     public BirthContext Birth { get; internal set; } = new();
     public int AgeYears { get; private set; }
     public int AgeDays { get; private set; }
     public bool IsAlive { get; private set; } = true;
+    public double Wealth { get; private set; }
 
     public void AdvanceAge(int years)
     {
@@ -28,6 +30,8 @@ public sealed class Npc
         AgeDays += days;
         AgeYears = AgeDays / 365;
     }
+
+    public void ApplyWealthChange(double amount) => Wealth = Math.Max(0, Wealth + amount);
 
     public void Die() => IsAlive = false;
 }
