@@ -4,15 +4,8 @@ namespace Murim.Simulation;
 
 public enum PlayerCommandIntent
 {
-    Unknown,
-    Observe,
-    Travel,
-    Talk,
-    Train,
-    Eat,
-    Drink,
-    Sleep,
-    InspectSelf
+    Unknown, Observe, Travel, Talk, Train, Eat, Drink, Sleep, InspectSelf,
+    AskDirections, Follow, Help, Refuse, Examine, Enter, Work, Buy, Sell, Investigate, DetectDanger
 }
 
 public sealed class CommandParseResult
