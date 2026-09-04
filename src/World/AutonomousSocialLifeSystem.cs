@@ -61,12 +61,39 @@ public sealed class AutonomousSocialLifeSystem
                 AddBidirectional(first, second, RelationshipType.Acquaintance, affinity, 0.20, 0.15);
                 first.History.Add("Rencontre", first.AgeYears, $"Rencontre {second.Identity.DisplayName}.");
                 second.History.Add("Rencontre", second.AgeYears, $"Rencontre {first.Identity.DisplayName}.");
+                world.Information.Publish(
+                    world,
+                    first,
+                    "Rencontre",
+                    $"{first.Identity.DisplayName} a rencontré {second.Identity.DisplayName}.",
+                    second.Id,
+                    first.CurrentLocationId,
+                    InformationReliability.Verified,
+                    0);
+                world.Information.Publish(
+                    world,
+                    second,
+                    "Rencontre",
+                    $"{second.Identity.DisplayName} a rencontré {first.Identity.DisplayName}.",
+                    first.Id,
+                    second.CurrentLocationId,
+                    InformationReliability.Verified,
+                    0);
                 LastEvents.Add($"Rencontre entre {first.Identity.DisplayName} et {second.Identity.DisplayName}.");
             }
             else if (relationship.Type == RelationshipType.Acquaintance && random.NextDouble() < 0.12)
             {
                 relationship.Shift(0.05, 0.04, 0.03);
                 first.History.Add("Lien social", first.AgeYears, $"Le lien avec {second.Identity.DisplayName} se renforce.");
+                world.Information.Publish(
+                    world,
+                    first,
+                    "Relation",
+                    $"{first.Identity.DisplayName} semble entretenir un lien cordial avec {second.Identity.DisplayName}.",
+                    second.Id,
+                    first.CurrentLocationId,
+                    InformationReliability.Unverified,
+                    0.25);
             }
         }
     }
