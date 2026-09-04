@@ -21,6 +21,7 @@ public sealed class Npc
     public BirthContext Birth { get; internal set; } = new();
     public Guid? CurrentFamilyId { get; private set; }
     public Guid? CurrentLocationId { get; private set; }
+    public Guid? CurrentBuildingId { get; private set; }
     public int AgeYears { get; private set; }
     public int AgeDays { get; private set; }
     public bool IsAlive { get; private set; } = true;
@@ -32,7 +33,9 @@ public sealed class Npc
     public void AdvanceDays(int days) { if (days < 0) throw new ArgumentOutOfRangeException(nameof(days)); AgeDays += days; AgeYears = AgeDays / 365; }
     public void ApplyWealthChange(double amount) => Wealth = Math.Max(0, Wealth + amount);
     public void JoinFamily(Guid familyId) => CurrentFamilyId = familyId;
-    public void SetLocation(Guid locationId) => CurrentLocationId = locationId;
+    public void SetLocation(Guid locationId) { CurrentLocationId = locationId; CurrentBuildingId = null; }
+    public void EnterBuilding(Guid buildingId) => CurrentBuildingId = buildingId;
+    public void ExitBuilding() => CurrentBuildingId = null;
     public void DiscoverLocation(Guid locationId) => KnownLocationIds.Add(locationId);
     public void Learn(KnowledgeEntry entry)
     {
@@ -40,5 +43,5 @@ public sealed class Npc
         if (existing is null) Knowledge.Add(entry);
         else existing.Confidence = Math.Max(existing.Confidence, entry.Confidence);
     }
-    public void Die() => IsAlive = false;
+    public void Die() { IsAlive = false; CurrentBuildingId = null; }
 }
