@@ -11,7 +11,7 @@ public sealed class WorldState
     public InventorySystem Inventory { get; } = new(); public SurvivalSystem Survival { get; } = new(); public AgingSystem Aging { get; } = new(); public MedicineSystem Medicine { get; } = new();
     public MartialTrainingSystem Martial { get; } = new(); public MartialOrganizationSystem MartialOrganizations { get; } = new(); public MartialMentorshipSystem Mentorships { get; } = new();
     public MartialConflictSystem MartialConflicts { get; } = new(); public MartialWarSystem MartialWars { get; } = new(); public MartialTerritorySystem MartialTerritories { get; } = new();
-    public MartialWarConsequencesSystem MartialWarConsequences { get; } = new(); public ContextualActionSystem ContextualActions { get; } = new();
+    public MartialWarConsequencesSystem MartialWarConsequences { get; } = new(); public ContextualActionSystem ContextualActions { get; } = new(); public BuildingSystem Buildings { get; } = new();
     public int WorldSeed { get; private set; } public Npc? PlayerNpc { get; private set; }
 
     public void AddNpc(Npc npc) { ArgumentNullException.ThrowIfNull(npc); Npcs[npc.Id] = npc; }
@@ -25,17 +25,18 @@ public sealed class WorldState
         {
             foreach (var npc in Npcs.Values.Where(n => n.IsAlive)) Aging.AdvanceDays(npc, 1);
             Environment.AdvanceDay(this, WorldSeed); Medicine.AdvanceDay(this); FamilyLife.AdvanceDay(this); SocialLife.AdvanceDay(this); Relationships.AdvanceDay(this);
-            Mentorships.AdvanceDay(this); MartialConflicts.AdvanceDay(this); MartialWarConsequences.AdvanceDay(this); MartialTerritories.AdvanceDay(this);
+            Mentorships.AdvanceDay(this); MartialConflicts.AdvanceDay(this); MartialWarConsequences.AdvanceDay(this); MartialTerritories.AdvanceDay(this); Buildings.AdvanceDay(this);
         }
     }
 
     public void CreatePlayerAtBirth(int seed, string familyName)
     {
-        WorldSeed = seed; Geography.GenerateStarterRegion(seed); Environment.Initialize(Geography, seed);
+        WorldSeed = seed; Geography.GenerateStarterRegion(seed); Environment.Initialize(Geography, seed); Buildings.InitializeStarterBuildings(this);
         MartialOrganizations.RegisterTerritorialAuthorities(this); Inventory.Register("Pain de campagne", ItemCategory.Food, 0.4, 1, true);
         var origin = FamilyLife.RollFamilyOrigin(seed, familyName); AddFamily(origin.Family); AddNpc(origin.Father); AddNpc(origin.Mother); AddNpc(origin.Child);
         var home = Geography.Locations.Values.First(l => l.Name == "Village du Berceau");
         origin.Father.SetLocation(home.Id); origin.Mother.SetLocation(home.Id); origin.Child.SetLocation(home.Id);
+        var familyHome = Buildings.Buildings.Values.First(b => b.LocationId == home.Id && b.Type == BuildingType.House); familyHome.ResidentNpcIds.Add(origin.Father.Id); familyHome.ResidentNpcIds.Add(origin.Mother.Id); familyHome.ResidentNpcIds.Add(origin.Child.Id); origin.Father.EnterBuilding(familyHome.Id); origin.Mother.EnterBuilding(familyHome.Id); origin.Child.EnterBuilding(familyHome.Id);
         origin.Child.DiscoverLocation(home.Id); foreach (var l in Geography.Locations.Values.Where(l => l.Type is LocationType.Town or LocationType.Market)) origin.Child.DiscoverLocation(l.Id);
         Relationships.Link(origin.Father.Id, origin.Child.Id, RelationshipType.Parent, 0.8, 0.8, 0.5); Relationships.Link(origin.Mother.Id, origin.Child.Id, RelationshipType.Parent, 0.8, 0.8, 0.5);
         Relationships.Link(origin.Father.Id, origin.Mother.Id, RelationshipType.Spouse, 0.6, 0.8, 0.5);
