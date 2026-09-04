@@ -16,6 +16,7 @@ public sealed class Npc
     public Inventory Inventory { get; } = new();
     public Needs Needs { get; } = new();
     public List<PhysicalCondition> Conditions { get; } = new();
+    public MartialProfile Martial { get; } = new();
 
     public BirthContext Birth { get; internal set; } = new();
     public Guid? CurrentFamilyId { get; private set; }
@@ -24,7 +25,7 @@ public sealed class Npc
     public int AgeDays { get; private set; }
     public bool IsAlive { get; private set; } = true;
     public double Wealth { get; private set; }
-    public double CurrentPain => Math.Clamp(Conditions.Sum(c => c.Pain), 0, 1);
+    public double CurrentPain => Math.Clamp(Conditions.Sum(c => c.Pain), 0, 100);
     public double Mobility => Math.Clamp(1 - Conditions.Sum(c => c.MobilityPenalty), 0.05, 1);
 
     public void AdvanceAge(int years) { if (years < 0) throw new ArgumentOutOfRangeException(nameof(years)); AdvanceDays(years * 365); }
