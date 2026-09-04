@@ -21,6 +21,7 @@ public sealed class WorldState
     public SurvivalSystem Survival { get; } = new();
     public AgingSystem Aging { get; } = new();
     public MedicineSystem Medicine { get; } = new();
+    public MartialTrainingSystem Martial { get; } = new();
     public int WorldSeed { get; private set; }
     public Npc? PlayerNpc { get; private set; }
 
@@ -51,6 +52,7 @@ public sealed class WorldState
         Geography.GenerateStarterRegion(seed);
         foreach (var location in Geography.Locations.Values) Environment.Get(location.Id);
         RegisterStarterItems();
+        RegisterStarterMartialArts();
         var home = Geography.Locations.Values.First(l => l.Type == LocationType.Village);
         var random = new Random(seed);
         var origin = forcedOrigin ?? RollOrigin(random);
@@ -81,6 +83,14 @@ public sealed class WorldState
         Inventory.Register("Herbe médicinale", ItemCategory.Medicine, 0.1, 3.0, true);
         Inventory.Register("Bois", ItemCategory.Material, 1.0, 0.8);
         Inventory.Register("Outil simple", ItemCategory.Tool, 2.0, 12.0, false, 100);
+    }
+
+    private void RegisterStarterMartialArts()
+    {
+        Martial.Register("Pas du Berceau", "Tradition locale", MartialTechniqueCategory.Footwork, 12, 2, 0, 0, 4, 4);
+        Martial.Register("Poing du Travailleur", "Tradition locale", MartialTechniqueCategory.Strike, 18, 4, 0, 5, 0, 5);
+        Martial.Register("Garde de la Rivière", "Tradition locale", MartialTechniqueCategory.Defense, 20, 3, 0, 0, 3, 6);
+        Martial.Register("Respiration du Matin", "Tradition locale", MartialTechniqueCategory.Internal, 35, 2, 2, 0, 0, 0);
     }
 
     public Npc CreateChild(int seed, Family family, Npc father, Npc mother, string culture, string region)
