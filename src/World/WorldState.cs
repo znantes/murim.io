@@ -19,6 +19,8 @@ public sealed class WorldState
     public PerceptionSystem Perception { get; } = new();
     public InventorySystem Inventory { get; } = new();
     public SurvivalSystem Survival { get; } = new();
+    public AgingSystem Aging { get; } = new();
+    public MedicineSystem Medicine { get; } = new();
     public int WorldSeed { get; private set; }
     public Npc? PlayerNpc { get; private set; }
 
@@ -29,12 +31,15 @@ public sealed class WorldState
     {
         if (minutes < 0) throw new ArgumentOutOfRangeException(nameof(minutes));
         Survival.Advance(this, minutes);
+        foreach (var npc in Npcs.Values.Where(n => n.IsAlive)) Aging.AdvanceDays(npc, 0);
         var oldDay = Time.Day;
         Time.AdvanceMinutes(minutes);
         var elapsedDays = Time.Day - oldDay;
         for (var i = 0L; i < elapsedDays; i++)
         {
+            foreach (var npc in Npcs.Values.Where(n => n.IsAlive)) Aging.AdvanceDays(npc, 1);
             Environment.AdvanceDay(this, WorldSeed);
+            Medicine.AdvanceDay(this);
             FamilyLife.AdvanceDay(this);
             SocialLife.AdvanceDay(this);
             Relationships.AdvanceDay(this);
