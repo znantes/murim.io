@@ -31,7 +31,6 @@ public sealed class WorldState
     {
         if (minutes < 0) throw new ArgumentOutOfRangeException(nameof(minutes));
         Survival.Advance(this, minutes);
-        foreach (var npc in Npcs.Values.Where(n => n.IsAlive)) Aging.AdvanceDays(npc, 0);
         var oldDay = Time.Day;
         Time.AdvanceMinutes(minutes);
         var elapsedDays = Time.Day - oldDay;
