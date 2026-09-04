@@ -38,7 +38,7 @@ public sealed class ObservationSystem
         var signs = new List<string> { $"Météo : {environment.Weather}" };
         var warnings = new List<string>();
         if (location.DangerLevel >= 60) warnings.Add("Le lieu présente un danger important.");
-        if (environment.Weather.Contains("storm", StringComparison.OrdinalIgnoreCase) || environment.Weather.Contains("orage", StringComparison.OrdinalIgnoreCase))
+        if (environment.Weather is WeatherType.Storm or WeatherType.HeavySnow)
             warnings.Add("Les conditions météorologiques sont difficiles.");
 
         var description = people.Count == 0
