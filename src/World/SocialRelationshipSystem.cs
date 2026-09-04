@@ -160,9 +160,5 @@ public sealed class SocialRelationshipSystem
     }
 
     private static Random DeterministicRandom(int seed, Guid first, Guid second, long day)
-    {
-        var a = first.ToByteArray(); var b = second.ToByteArray();
-        var hash = BitConverter.ToInt32(a, 0) ^ BitConverter.ToInt32(a, 8) ^ BitConverter.ToInt32(b, 0) ^ BitConverter.ToInt32(b, 8);
-        return new Random(HashCode.Combine(seed, hash, day));
-    }
+        => new(DeterministicRandomSeed.Create(seed, day, first, second));
 }
