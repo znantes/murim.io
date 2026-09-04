@@ -32,7 +32,7 @@ public sealed class MartialWarSystem
     public MartialWar? StartWar(WorldState world, MartialOrganization attacker, MartialOrganization defender, string cause)
     {
         if (attacker.Id == defender.Id) return null;
-        if (_wars.Values.Any(w => w.Status is MartialWarStatus.Preparing or MartialWarStatus.Active &&
+        if (_wars.Values.Any(w => (w.Status is MartialWarStatus.Preparing or MartialWarStatus.Active) &&
             ((w.AttackerOrganizationId == attacker.Id && w.DefenderOrganizationId == defender.Id) ||
              (w.AttackerOrganizationId == defender.Id && w.DefenderOrganizationId == attacker.Id)))) return null;
 
@@ -101,7 +101,7 @@ public sealed class MartialWarSystem
     {
         unchecked
         {
-            var hash = seed ^ salt * 16777619;
+            var hash = seed ^ (salt * 16777619);
             foreach (var b in id.ToByteArray()) hash = (hash ^ b) * 16777619;
             hash ^= battle * 374761393;
             hash ^= hash >> 13; hash *= 1274126177; hash ^= hash >> 16;
