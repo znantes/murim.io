@@ -22,11 +22,17 @@ jobs:
           test -n "$GODOT_BIN"
           chmod +x "$GODOT_BIN"
           echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
-      - name: Import and build C# project
+      - name: Build Godot C# solution
         run: |
-          "$GODOT_BIN" --headless --path . --editor --quit-after 2
-          dotnet build Murim.io.csproj --no-restore
+          "$GODOT_BIN" --headless --path . --editor --build-solutions --quit
+      - name: Build C# project
+        run: |
+          dotnet restore Murim.io.csproj
+          dotnet build Murim.io.csproj --configuration Debug --no-restore
+      - name: Verify generated Godot assembly
+        run: |
+          test -f .godot/mono/assemblies/Debug/Murim.io.dll
       - name: Run headless game smoke test
         timeout-minutes: 2
         run: |
-          "$GODOT_BIN" --headless --path . --quit-after 5
+          "$GODOT_BIN" --headless --path . --verbose --quit-after 5
