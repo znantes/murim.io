@@ -1,3 +1,5 @@
+using Murim.Simulation;
+
 namespace Murim.World;
 
 public sealed class ScheduledWorldEvent
