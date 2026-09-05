@@ -25,7 +25,7 @@ jobs:
       - name: Import and build C# project
         run: |
           "$GODOT_BIN" --headless --path . --editor --quit-after 2
-          test -f .godot/mono/metadata/assembly_dependencies.txt || true
+          dotnet build Murim.io.csproj --no-restore
       - name: Run headless game smoke test
         timeout-minutes: 2
         run: |
