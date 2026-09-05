@@ -1,3 +1,5 @@
+using Murim.Simulation;
+
 namespace Murim.World;
 
 public enum CommerceType { GeneralStore, FoodStall, Inn, Blacksmith, Apothecary, Clothier, MerchantHouse, MarketStall }
