@@ -25,6 +25,13 @@ public sealed class Needs
         Sleep = Math.Clamp(Sleep - relief, 0, 100);
         Fatigue = Math.Clamp(Fatigue - relief * 1.2, 0, 100);
     }
+    public void Exert(double amount)
+    {
+        var value = Math.Max(0, amount);
+        Fatigue = Math.Clamp(Fatigue + value, 0, 100);
+        Hunger = Math.Clamp(Hunger + value * 0.25, 0, 100);
+        Thirst = Math.Clamp(Thirst + value * 0.35, 0, 100);
+    }
 }
 
 public sealed class SurvivalSystem
