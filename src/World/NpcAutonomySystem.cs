@@ -76,6 +76,7 @@ public sealed class NpcAutonomySystem
             if (TrySeekMedicalCare(world, npc)) continue;
             if (TryTravelToMedicalCare(world, npc)) continue;
             if (TrySeekHelpForCriticalNeed(world, npc)) continue;
+            if (TryTravelToTrustedHelper(world, npc)) continue;
             if (TryTravelToWork(world, npc)) continue;
             TryWork(world, npc);
         }
@@ -213,6 +214,44 @@ public sealed class NpcAutonomySystem
         return true;
     }
 
+    private bool TryTravelToTrustedHelper(WorldState world, Npc npc)
+    {
+        if (npc.CurrentLocationId is not Guid currentLocationId) return false;
+        var need = npc.Needs.Thirst >= 85 ? "eau" : npc.Needs.Hunger >= 85 ? "nourriture" : null;
+        if (need is null) return false;
+
+        var destination = world.Npcs.Values
+            .Where(candidate => candidate.IsAlive && candidate.Id != npc.Id && candidate.CurrentLocationId is Guid locationId && locationId != currentLocationId && npc.KnownLocationIds.Contains(locationId))
+            .Select(candidate => new
+            {
+                Npc = candidate,
+                LocationId = candidate.CurrentLocationId!.Value,
+                Trust = GetRelationshipTrust(npc, candidate.Id),
+                Distance = world.Geography.GetRouteDistance(currentLocationId, candidate.CurrentLocationId!.Value)
+            })
+            .Where(x => x.Trust >= 0.25 && !double.IsInfinity(x.Distance) && FindHelpItem(world, x.Npc, need) is not null)
+            .OrderByDescending(x => x.Trust)
+            .ThenBy(x => x.Distance)
+            .ThenBy(x => x.Npc.Id)
+            .FirstOrDefault();
+        if (destination is null) return false;
+
+        var plan = world.Travel.Plan(world, npc, destination.LocationId, MovementMethod.Walk);
+        if (plan is null) return false;
+        _pendingTravels[npc.Id] = new PendingTravel
+        {
+            DestinationId = destination.LocationId,
+            BuildingId = Guid.Empty,
+            RemainingMinutes = plan.DurationMinutes,
+            DistanceKm = plan.DistanceKm,
+            Purpose = $"entraide:{destination.Npc.Id}"
+        };
+        var locationName = world.Geography.Locations[destination.LocationId].Name;
+        npc.History.Add("Déplacement", npc.AgeYears, $"Part vers {locationName} pour demander de l'aide à {destination.Npc.Identity.DisplayName} ({plan.DistanceKm:0.#} km, environ {plan.DurationMinutes} min à pied).");
+        LastActions.Add($"{npc.Identity.DisplayName} part demander de l'aide à {destination.Npc.Identity.DisplayName}.");
+        return true;
+    }
+
     private static ItemDefinition? FindHelpItem(WorldState world, Npc helper, string need)
     {
         foreach (var entry in helper.Inventory.Entries.Where(e => e.Quantity > 0))
@@ -322,7 +361,7 @@ public sealed class NpcAutonomySystem
         }
         if (!world.Employment.WorkHour(world, npc, out var wage)) return false;
         npc.Needs.Exert(4);
-        npc.History.Add("Travail", npc.AgeYears, $"Travaille comme {contract.ProfessionType} et gagne {wage:0.##}.");
+        npc.History.Add("Travail", npc.AgeYears, $"Travaille comme {contract.ProfessionType} et gagne {wage:0.#}.");
         LastActions.Add($"{npc.Identity.DisplayName} travaille.");
         return true;
     }
