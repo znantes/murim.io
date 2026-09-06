@@ -27,4 +27,5 @@ public sealed class Profession
     public double DailyIncome { get; set; }
     public double DailyExpense { get; set; }
     public bool IsActive { get; set; } = true;
+    public Guid? OrganizationId { get; set; }
 }
