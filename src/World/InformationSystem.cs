@@ -87,7 +87,8 @@ public sealed class InformationSystem
         if (original.LocationId is Guid locationId && world.Geography.Locations.TryGetValue(locationId, out var location))
         {
             var confidence = ReliabilityConfidence(reliability) * Math.Clamp(0.65 + trust * 0.5, 0.25, 1.0);
-            to.DiscoverLocation(locationId);
+            if (reliability >= InformationReliability.Plausible)
+                to.DiscoverLocation(locationId);
             to.Learn(new KnowledgeEntry
             {
                 EntityId = locationId,
