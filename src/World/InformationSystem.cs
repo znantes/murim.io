@@ -44,11 +44,12 @@ public sealed class InformationSystem
         return item;
     }
 
-    public IEnumerable<InformationItem> HeardBy(Npc npc) => Items.Where(i => i.HeardByNpcIds.Contains(npc.Id) || npc.KnownLocationIds.Contains(i.LocationId ?? Guid.Empty) || i.SubjectNpcId == npc.Id);
+    public IEnumerable<InformationItem> HeardBy(Npc npc) => Items.Where(i => i.HeardByNpcIds.Contains(npc.Id));
 
     public InformationItem? Spread(WorldState world, Npc from, Npc to, InformationItem original)
     {
         if (from.CurrentLocationId is null || to.CurrentLocationId != from.CurrentLocationId) return null;
+        if (original.SourceNpcId != from.Id || !original.HeardByNpcIds.Contains(from.Id)) return null;
         if (original.HeardByNpcIds.Contains(to.Id)) return null;
 
         var trust = from.Relationships.FirstOrDefault(r => r.ToNpcId == to.Id)?.Trust ?? 0.2;
