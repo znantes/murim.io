@@ -102,7 +102,7 @@ public sealed class NpcAutonomySystem
         var healer = world.Npcs.Values
             .Where(candidate => candidate.IsAlive && candidate.Id != npc.Id && candidate.CurrentLocationId == npc.CurrentLocationId && candidate.Profession.Type == ProfessionType.Healer)
             .OrderByDescending(candidate => candidate.Profession.Skill)
-            .ThenByDescending(candidate => candidate.Relationships.TryGetValue(npc.Id, out var relation) ? relation.Trust : 0)
+            .ThenByDescending(candidate => GetRelationshipTrust(candidate, npc.Id))
             .ThenBy(candidate => candidate.Id)
             .FirstOrDefault();
         if (healer is null || healer.Profession.Skill < 20) return false;
@@ -117,13 +117,16 @@ public sealed class NpcAutonomySystem
         return true;
     }
 
+    private static double GetRelationshipTrust(Npc npc, Guid otherNpcId)
+        => npc.Relationships.FirstOrDefault(r => r.ToNpcId == otherNpcId && r.IsActive)?.Trust ?? 0;
+
     private bool TrySeekHelpForCriticalNeed(WorldState world, Npc npc)
     {
         var need = npc.Needs.Thirst >= 85 ? "eau" : npc.Needs.Hunger >= 85 ? "nourriture" : null;
         if (need is null) return false;
         var helper = world.Npcs.Values
             .Where(candidate => candidate.IsAlive && candidate.Id != npc.Id && candidate.CurrentLocationId == npc.CurrentLocationId)
-            .Select(candidate => new { Npc = candidate, Trust = npc.Relationships.TryGetValue(candidate.Id, out var relation) ? relation.Trust : 0 })
+            .Select(candidate => new { Npc = candidate, Trust = GetRelationshipTrust(npc, candidate.Id) })
             .Where(x => x.Trust >= 0.25)
             .OrderByDescending(x => x.Trust)
             .ThenBy(x => x.Npc.Id)
