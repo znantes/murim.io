@@ -11,9 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+
       - name: Install Godot .NET
         run: |
           wget -q https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_mono_linux_x86_64.zip
@@ -22,18 +24,24 @@ jobs:
           test -n "$GODOT_BIN"
           chmod +x "$GODOT_BIN"
           echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
       - name: Restore C# project
-        run: |
-          dotnet restore Murim.io.csproj
+        run: dotnet restore Murim.io.csproj
+
       - name: Build C# project
-        run: |
-          dotnet build Murim.io.csproj --configuration Debug --no-restore
-      - name: Build and import C# assembly into Godot
+        run: dotnet build Murim.io.csproj --configuration Debug --no-restore
+
+      - name: Let Godot build and register the C# project
         run: |
           "$GODOT_BIN" --headless --path . --editor --build-solutions --quit
-      - name: Verify generated Godot assembly
+
+      - name: Inspect Godot C# assembly output
         run: |
-          test -f .godot/mono/assemblies/Debug/Murim.io.dll
+          echo '--- .godot/mono files ---'
+          find .godot/mono -type f -name '*.dll' -print 2>/dev/null || true
+          echo '--- Murim.io.dll files ---'
+          find . -type f -name 'Murim.io.dll' -print
+
       - name: Run headless game smoke test
         timeout-minutes: 2
         run: |
