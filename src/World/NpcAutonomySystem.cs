@@ -45,13 +45,14 @@ public sealed class NpcAutonomySystem
 
             travel.RemainingMinutes -= minutes;
             if (travel.RemainingMinutes > 0) continue;
+
             if (!world.Geography.Locations.TryGetValue(travel.DestinationId, out var destination))
             {
                 _pendingTravels.Remove(npcId);
                 continue;
             }
 
-            npc.SetLocation(destination.Id);
+            npc.SetLocation(travel.DestinationId);
             npc.History.Add("Déplacement", npc.AgeYears, $"Arrive à {destination.Name} après un trajet de {travel.DistanceKm:0.#} km.");
             LastActions.Add($"{npc.Identity.DisplayName} arrive à {destination.Name}.");
             _pendingTravels.Remove(npcId);
@@ -66,7 +67,7 @@ public sealed class NpcAutonomySystem
             if (npc.AgeYears < 4) continue;
             if (_pendingTravels.ContainsKey(npc.Id)) continue;
             if (TrySatisfyCriticalNeed(world, npc)) continue;
-            if (TryAcquireCriticalNeed(world, npc)) continue;
+            if (TryLearnUsefulLocation(world, npc)) continue;
             if (TryTravelToWork(world, npc)) continue;
             TryWork(world, npc);
         }
@@ -86,60 +87,6 @@ public sealed class NpcAutonomySystem
         }
         return false;
     }
-
-    private bool TryAcquireCriticalNeed(WorldState world, Npc npc)
-    {
-        if (npc.Needs.Thirst >= 70 && TryBuyAndConsume(world, npc, "Eau", ItemCategory.Food, 25, "boit")) return true;
-        if (npc.Needs.Hunger >= 70 && TryBuyAndConsume(world, npc, "Pain de campagne", ItemCategory.Food, 35, "mange")) return true;
-        if (npc.Needs.Hunger >= 70 && TryBuyFirstFoodAndConsume(world, npc, 25)) return true;
-        return false;
-    }
-
-    private bool TryBuyAndConsume(WorldState world, Npc npc, string itemName, ItemCategory category, double relief, string verb)
-    {
-        var item = world.Inventory.FindByName(itemName);
-        if (item is null || item.Category != category || !item.Consumable) return false;
-        var business = FindBusinessSelling(world, npc, item.Id);
-        if (business is null) return false;
-        if (!world.Commerce.Buy(world, npc, business, item.Id, 1, out var total)) return false;
-        if (!npc.Inventory.Remove(item.Id)) return false;
-
-        if (verb == "boit") npc.Needs.Drink(relief);
-        else npc.Needs.Eat(relief);
-        npc.History.Add("Commerce", npc.AgeYears, $"Achète {item.Name} pour {total:0.##} puis {verb} {item.Name}.");
-        LastActions.Add($"{npc.Identity.DisplayName} achète {item.Name} et le consomme.");
-        return true;
-    }
-
-    private bool TryBuyFirstFoodAndConsume(WorldState world, Npc npc, double relief)
-    {
-        var business = world.Commerce.Businesses.Values
-            .Where(b => b.Active && b.LocationId == npc.CurrentLocationId && b.IsOpen(world.Time.Period) && b.OwnerNpcId != npc.Id)
-            .OrderBy(b => b.Type == CommerceType.FoodStall ? 0 : 1)
-            .ThenBy(b => b.Id)
-            .FirstOrDefault(b => b.Stock.Any(s => s.Quantity > 0 && world.Inventory.Items.TryGetValue(s.ItemId, out var item) && item.Category == ItemCategory.Food && item.Consumable));
-        if (business is null) return false;
-
-        foreach (var stock in business.Stock.Where(s => s.Quantity > 0).ToList())
-        {
-            if (!world.Inventory.Items.TryGetValue(stock.ItemId, out var item) || item.Category != ItemCategory.Food || !item.Consumable) continue;
-            if (!world.Commerce.Buy(world, npc, business, item.Id, 1, out var total)) continue;
-            if (!npc.Inventory.Remove(item.Id)) continue;
-            npc.Needs.Eat(relief);
-            npc.History.Add("Commerce", npc.AgeYears, $"Achète {item.Name} pour {total:0.##} puis le consomme.");
-            LastActions.Add($"{npc.Identity.DisplayName} achète {item.Name} et le consomme.");
-            return true;
-        }
-        return false;
-    }
-
-    private static CommerceBusiness? FindBusinessSelling(WorldState world, Npc npc, Guid itemId)
-        => world.Commerce.Businesses.Values
-            .Where(b => b.Active && b.LocationId == npc.CurrentLocationId && b.OwnerNpcId != npc.Id && b.IsOpen(world.Time.Period))
-            .Where(b => b.Stock.Any(s => s.ItemId == itemId && s.Quantity > 0))
-            .OrderBy(b => b.Type == CommerceType.FoodStall ? 0 : 1)
-            .ThenBy(b => b.Id)
-            .FirstOrDefault();
 
     private bool TryConsume(WorldState world, Npc npc, ItemCategory category, string preferredName, double relief, string verb)
     {
@@ -169,9 +116,42 @@ public sealed class NpcAutonomySystem
         return false;
     }
 
+    private bool TryLearnUsefulLocation(WorldState world, Npc npc)
+    {
+        if (npc.CurrentLocationId is not Guid currentLocationId) return false;
+        if (!world.Employment.Contracts.TryGetValue(npc.Id, out var contract) || contract.BuildingId is not Guid buildingId) return false;
+        if (!world.Buildings.Buildings.TryGetValue(buildingId, out var building)) return false;
+        if (npc.KnownLocationIds.Contains(building.LocationId)) return false;
+
+        var teacher = world.Npcs.Values
+            .Where(other => other.IsAlive && other.Id != npc.Id && other.CurrentLocationId == currentLocationId && other.KnownLocationIds.Contains(building.LocationId))
+            .OrderByDescending(other => other.Relationships.FirstOrDefault(r => r.ToNpcId == npc.Id)?.Trust ?? 0.2)
+            .ThenBy(other => other.Id)
+            .FirstOrDefault();
+        if (teacher is null) return false;
+
+        var trust = teacher.Relationships.FirstOrDefault(r => r.ToNpcId == npc.Id)?.Trust ?? 0.2;
+        if (trust < 0.1) return false;
+
+        npc.DiscoverLocation(building.LocationId);
+        npc.Learn(new KnowledgeEntry
+        {
+            EntityId = building.LocationId,
+            Kind = KnowledgeKind.Location,
+            Confidence = Math.Clamp(0.55 + trust * 0.4, 0.25, 0.95),
+            LearnedDay = world.Time.Day,
+            SourceNpcId = teacher.Id,
+            Summary = $"Indique où se trouve {building.Name}."
+        });
+        npc.History.Add("Connaissance", npc.AgeYears, $"Apprend de {teacher.Identity.DisplayName} où se trouve {building.Name}.");
+        teacher.History.Add("Connaissance", teacher.AgeYears, $"Indique à {npc.Identity.DisplayName} où se trouve {building.Name}.");
+        LastActions.Add($"{npc.Identity.DisplayName} apprend où aller travailler.");
+        return true;
+    }
+
     private bool TryTravelToWork(WorldState world, Npc npc)
     {
-        if (world.Time.Period is TimePeriod.Night || npc.Needs.Fatigue >= 65 || !world.Employment.IsEmployed(npc)) return false;
+        if (world.Time.Period is Murim.Simulation.TimePeriod.Night || npc.Needs.Fatigue >= 65 || !world.Employment.IsEmployed(npc)) return false;
         if (!world.Employment.Contracts.TryGetValue(npc.Id, out var contract)) return false;
         if (contract.BuildingId is not Guid buildingId || !world.Buildings.Buildings.TryGetValue(buildingId, out var building)) return false;
         if (npc.CurrentLocationId == building.LocationId) return false;
@@ -196,7 +176,7 @@ public sealed class NpcAutonomySystem
     {
         // Employment.WorkHour pays exactly one hour. Only execute it on the hour so
         // the 30-minute autonomy tick cannot accidentally double an NPC's wage.
-        if (world.Time.Period is TimePeriod.Night || world.Time.MinuteOfDay % 60 != 0 || npc.Needs.Fatigue >= 65 || !world.Employment.IsEmployed(npc)) return false;
+        if (world.Time.Period is Murim.Simulation.TimePeriod.Night || world.Time.MinuteOfDay % 60 != 0 || npc.Needs.Fatigue >= 65 || !world.Employment.IsEmployed(npc)) return false;
         if (!world.Employment.Contracts.TryGetValue(npc.Id, out var contract)) return false;
         if (contract.BuildingId is not Guid buildingId || !world.Buildings.Buildings.TryGetValue(buildingId, out var building)) return false;
         if (npc.CurrentLocationId != building.LocationId) return false;
