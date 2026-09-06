@@ -50,6 +50,15 @@ public sealed class NpcAutonomySystem
                 _pendingTravels.Remove(npcId);
                 continue;
             }
+
+            // Autonomous travel owns elapsed world time, so resolve incidents without
+            // calling Travel.Execute (which would advance world time recursively).
+            if (world.Transport.ResolveIncident(world, npc, travel.DestinationId, MovementMethod.Walk, Math.Max(1, minutes), out var extraMinutes, out _))
+            {
+                travel.RemainingMinutes = extraMinutes;
+                continue;
+            }
+
             npc.SetLocation(destination.Id);
             npc.History.Add("Déplacement", npc.AgeYears, $"Arrive à {destination.Name} après un trajet de {travel.DistanceKm:0.#} km.");
             LastActions.Add($"{npc.Identity.DisplayName} arrive à {destination.Name}.");
@@ -276,7 +285,7 @@ public sealed class NpcAutonomySystem
         if (!npc.KnownLocationIds.Contains(building.LocationId)) return false;
         var plan = world.Travel.Plan(world, npc, building.LocationId, MovementMethod.Walk);
         if (plan is null) return false;
-        _pendingTravels[npc.Id] = new PendingTravel { DestinationId = building.LocationId, BuildingId = building.Id, RemainingMinutes = plan.DurationMinutes, DistanceKm = plan.DistanceKm, Purpose = "travail" };
+        _pendingTravels[npc.Id] = new PendingTravel { DestinationId = building.LocationId, BuildingId = building.Id, RemainingMinutes = plan.DurationMinutes, DistanceKm = plan.DistanceKm };
         npc.History.Add("Déplacement", npc.AgeYears, $"Part vers {world.Geography.Locations[building.LocationId].Name} pour rejoindre son travail ({plan.DistanceKm:0.#} km, environ {plan.DurationMinutes} min à pied).");
         LastActions.Add($"{npc.Identity.DisplayName} part travailler.");
         return true;
