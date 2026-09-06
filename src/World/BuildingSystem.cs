@@ -86,8 +86,11 @@ public sealed class BuildingSystem
 
     public void AdvanceDay(WorldState world)
     {
-        foreach (var npc in world.Npcs.Values.Where(n => n.IsAlive && n.CurrentBuildingId is Guid buildingId))
+        foreach (var npc in world.Npcs.Values.Where(n => n.IsAlive && n.CurrentBuildingId is not null))
         {
+            var currentBuildingId = npc.CurrentBuildingId;
+            if (currentBuildingId is not Guid buildingId)
+                continue;
             if (!Buildings.TryGetValue(buildingId, out var building) || !building.IsOpen(world.Time.Period))
                 npc.ExitBuilding();
         }
