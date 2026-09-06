@@ -77,11 +77,34 @@ public sealed class AutonomousInformationSystem
     {
         var urgentNeed = target.Needs.Thirst >= 85 || target.Needs.Hunger >= 85 || target.Conditions.Any(c => c.Treatable && c.Severity >= 0.55);
         return world.Information.HeardBy(source)
-            .Where(i => !i.HeardByNpcIds.Contains(target.Id) && i.SubjectNpcId != source.Id)
+            .Where(i => !i.HeardByNpcIds.Contains(target.Id) && i.SubjectNpcId != source.Id && IsInformationStillValid(world, source, i))
             .OrderByDescending(i => InformationPriority(world, source, target, i, urgentNeed))
             .ThenByDescending(i => i.CreatedDay)
             .ThenBy(i => i.Id)
             .FirstOrDefault();
+    }
+
+    private static bool IsInformationStillValid(WorldState world, Npc source, InformationItem item)
+    {
+        if (item.SubjectNpcId is Guid subjectId)
+        {
+            if (!world.Npcs.TryGetValue(subjectId, out var subject) || !subject.IsAlive)
+                return false;
+
+            if (item.LocationId is Guid subjectLocationId && subject.CurrentLocationId is Guid currentSubjectLocationId && subjectLocationId != currentSubjectLocationId)
+                return false;
+        }
+
+        if (item.LocationId is Guid locationId)
+        {
+            if (!world.Geography.Locations.ContainsKey(locationId))
+                return false;
+
+            if (source.CurrentLocationId is not Guid sourceLocationId || double.IsInfinity(world.Geography.GetRouteDistance(sourceLocationId, locationId)))
+                return false;
+        }
+
+        return true;
     }
 
     private static int InformationPriority(WorldState world, Npc source, Npc target, InformationItem item, bool urgentNeed)
