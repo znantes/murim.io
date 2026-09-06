@@ -51,8 +51,6 @@ public sealed class NpcAutonomySystem
                 continue;
             }
 
-            // Autonomous travel owns elapsed world time, so resolve incidents without
-            // calling Travel.Execute (which would advance world time recursively).
             if (world.Transport.ResolveIncident(world, npc, travel.DestinationId, MovementMethod.Walk, Math.Max(1, minutes), out var extraMinutes, out _))
             {
                 travel.RemainingMinutes = extraMinutes;
@@ -113,12 +111,12 @@ public sealed class NpcAutonomySystem
         if (need is null) return false;
 
         var destination = world.Commerce.Businesses.Values
-            .Where(b => b.Active && b.OwnerNpcId != npc.Id && b.LocationId is Guid locationId && locationId != currentLocationId && npc.KnownLocationIds.Contains(locationId) && b.Stock.Any(s => s.Quantity > 0 && world.Inventory.Items.TryGetValue(s.ItemId, out var item) && item.Consumable && item.Category == ItemCategory.Food && (need == "eau" ? string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase) : !string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase))))
+            .Where(b => b.Active && b.OwnerNpcId != npc.Id && b.LocationId != currentLocationId && npc.KnownLocationIds.Contains(b.LocationId) && b.Stock.Any(s => s.Quantity > 0 && world.Inventory.Items.TryGetValue(s.ItemId, out var item) && item.Consumable && item.Category == ItemCategory.Food && (need == "eau" ? string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase) : !string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase))))
             .Select(b => new
             {
                 Business = b,
-                LocationId = b.LocationId!.Value,
-                Distance = world.Geography.GetRouteDistance(currentLocationId, b.LocationId!.Value)
+                LocationId = b.LocationId,
+                Distance = world.Geography.GetRouteDistance(currentLocationId, b.LocationId)
             })
             .Where(x => !double.IsInfinity(x.Distance))
             .OrderBy(x => x.Distance)
@@ -147,14 +145,11 @@ public sealed class NpcAutonomySystem
     {
         var condition = npc.Conditions.Where(c => c.Treatable && c.Severity >= 0.55).OrderByDescending(c => c.Severity).ThenByDescending(c => c.Pain).FirstOrDefault();
         if (condition is null) return false;
-
         var healer = FindHealer(world, npc);
         if (healer is null || healer.Profession.Skill < 20) return false;
-
         var diagnosis = world.Medicine.Diagnose(healer, npc, world.Time.Day);
         if (!diagnosis.IdentifiedConditionIds.Contains(condition.Id)) return false;
         if (!world.Medicine.Treat(healer, npc, condition.Id, world.Time.Day)) return false;
-
         npc.History.Add("Soin", npc.AgeYears, $"Cherche des soins auprès de {healer.Identity.DisplayName} pour {condition.Name}.");
         healer.History.Add("Soin", healer.AgeYears, $"Soigne {npc.Identity.DisplayName} pour {condition.Name}.");
         LastActions.Add($"{npc.Identity.DisplayName} reçoit des soins de {healer.Identity.DisplayName}.");
@@ -173,33 +168,19 @@ public sealed class NpcAutonomySystem
     {
         var condition = npc.Conditions.FirstOrDefault(c => c.Treatable && c.Severity >= 0.55);
         if (condition is null || npc.CurrentLocationId is not Guid currentLocationId) return false;
-
         var destination = world.Npcs.Values
             .Where(candidate => candidate.IsAlive && candidate.Id != npc.Id && candidate.Profession.Type == ProfessionType.Healer && candidate.Profession.Skill >= 20 && candidate.CurrentLocationId is Guid locationId && locationId != currentLocationId && npc.KnownLocationIds.Contains(locationId))
             .GroupBy(candidate => candidate.CurrentLocationId!.Value)
-            .Select(group => new
-            {
-                LocationId = group.Key,
-                BestSkill = group.Max(candidate => candidate.Profession.Skill),
-                Distance = world.Geography.GetRouteDistance(currentLocationId, group.Key)
-            })
+            .Select(group => new { LocationId = group.Key, BestSkill = group.Max(candidate => candidate.Profession.Skill), Distance = world.Geography.GetRouteDistance(currentLocationId, group.Key) })
             .Where(x => !double.IsInfinity(x.Distance))
             .OrderBy(x => x.Distance)
             .ThenByDescending(x => x.BestSkill)
             .ThenBy(x => x.LocationId)
             .FirstOrDefault();
         if (destination is null) return false;
-
         var plan = world.Travel.Plan(world, npc, destination.LocationId, MovementMethod.Walk);
         if (plan is null) return false;
-        _pendingTravels[npc.Id] = new PendingTravel
-        {
-            DestinationId = destination.LocationId,
-            BuildingId = Guid.Empty,
-            RemainingMinutes = plan.DurationMinutes,
-            DistanceKm = plan.DistanceKm,
-            Purpose = "soins"
-        };
+        _pendingTravels[npc.Id] = new PendingTravel { DestinationId = destination.LocationId, BuildingId = Guid.Empty, RemainingMinutes = plan.DurationMinutes, DistanceKm = plan.DistanceKm, Purpose = "soins" };
         var locationName = world.Geography.Locations[destination.LocationId].Name;
         npc.History.Add("Déplacement", npc.AgeYears, $"Part vers {locationName} pour chercher des soins ({plan.DistanceKm:0.#} km, environ {plan.DurationMinutes} min à pied).");
         LastActions.Add($"{npc.Identity.DisplayName} part chercher des soins à {locationName}.");
@@ -222,7 +203,6 @@ public sealed class NpcAutonomySystem
             .Select(x => x.Npc)
             .FirstOrDefault(candidate => FindHelpItem(world, candidate, need) is not null);
         if (helper is null) return false;
-
         var item = FindHelpItem(world, helper, need);
         if (item is null || !helper.Inventory.Remove(item.Id)) return false;
         npc.Inventory.Add(item, 1);
