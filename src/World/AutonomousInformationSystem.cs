@@ -131,7 +131,9 @@ public sealed class AutonomousInformationSystem
         if (knownLocations.Length == 0)
             return Guid.Empty;
 
-        if (world.Employment.Contracts.TryGetValue(target.Id, out var contract) && contract.BuildingId is Guid buildingId && world.Buildings.Buildings.TryGetValue(buildingId, out var workplace))
+        var urgentNeed = target.Needs.Thirst >= 85 || target.Needs.Hunger >= 85 || target.Conditions.Any(c => c.Treatable && c.Severity >= 0.55);
+
+        if (!urgentNeed && world.Employment.Contracts.TryGetValue(target.Id, out var contract) && contract.BuildingId is Guid buildingId && world.Buildings.Buildings.TryGetValue(buildingId, out var workplace))
         {
             if (knownLocations.Contains(workplace.LocationId))
                 return workplace.LocationId;
@@ -140,7 +142,7 @@ public sealed class AutonomousInformationSystem
         if (target.Needs.Thirst >= 70)
         {
             var waterLocation = knownLocations
-                .Where(id => world.Commerce.Businesses.Values.Any(b => b.Active && b.LocationId == id && b.OwnerNpcId != target.Id && b.Stock.Any(s => s.Quantity > 0 && world.Inventory.Items.TryGetValue(s.ItemId, out var item) && item.Consumable && item.Category == ItemCategory.Food && string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase))))
+                .Where(id => world.Commerce.Businesses.Values.Any(b => b.Active && b.LocationId == id && b.OwnerNpcId != target.Id && b.IsOpen(world.Time.Period) && b.Stock.Any(s => s.Quantity > 0 && world.Inventory.Items.TryGetValue(s.ItemId, out var item) && item.Consumable && item.Category == ItemCategory.Food && string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase))))
                 .OrderBy(id => world.Geography.GetRouteDistance(source.CurrentLocationId!.Value, id))
                 .ThenBy(id => id)
                 .FirstOrDefault();
@@ -151,7 +153,7 @@ public sealed class AutonomousInformationSystem
         if (target.Needs.Hunger >= 70)
         {
             var foodLocation = knownLocations
-                .Where(id => world.Commerce.Businesses.Values.Any(b => b.Active && b.LocationId == id && b.OwnerNpcId != target.Id && b.Stock.Any(s => s.Quantity > 0 && world.Inventory.Items.TryGetValue(s.ItemId, out var item) && item.Consumable && item.Category == ItemCategory.Food && !string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase))))
+                .Where(id => world.Commerce.Businesses.Values.Any(b => b.Active && b.LocationId == id && b.OwnerNpcId != target.Id && b.IsOpen(world.Time.Period) && b.Stock.Any(s => s.Quantity > 0 && world.Inventory.Items.TryGetValue(s.ItemId, out var item) && item.Consumable && item.Category == ItemCategory.Food && !string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase))))
                 .OrderBy(id => world.Geography.GetRouteDistance(source.CurrentLocationId!.Value, id))
                 .ThenBy(id => id)
                 .FirstOrDefault();
