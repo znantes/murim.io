@@ -7,7 +7,6 @@ public sealed class Identity
     public string? Title { get; set; }
     public string Sex { get; set; } = "Unknown";
 
-    public string DisplayName => string.IsNullOrWhiteSpace(FamilyName)
-        ? GivenName
-        : $"{GivenName} {FamilyName}";
+    public string DisplayName => string.IsNullOrWhiteSpace(FamilyName) ? GivenName : $"{GivenName} {FamilyName}";
+    public string Name => DisplayName;
 }
