@@ -10,6 +10,7 @@ public sealed class NpcAutonomySystem
         public Guid BuildingId { get; init; }
         public int RemainingMinutes { get; set; }
         public double DistanceKm { get; init; }
+        public string Purpose { get; init; } = string.Empty;
     }
 
     private readonly Dictionary<Guid, PendingTravel> _pendingTravels = new();
@@ -65,6 +66,7 @@ public sealed class NpcAutonomySystem
             if (TrySatisfyCriticalNeed(world, npc)) continue;
             if (TryAcquireCriticalNeed(world, npc)) continue;
             if (TrySeekMedicalCare(world, npc)) continue;
+            if (TryTravelToMedicalCare(world, npc)) continue;
             if (TrySeekHelpForCriticalNeed(world, npc)) continue;
             if (TryTravelToWork(world, npc)) continue;
             TryWork(world, npc);
@@ -99,12 +101,7 @@ public sealed class NpcAutonomySystem
         var condition = npc.Conditions.Where(c => c.Treatable && c.Severity >= 0.55).OrderByDescending(c => c.Severity).ThenByDescending(c => c.Pain).FirstOrDefault();
         if (condition is null) return false;
 
-        var healer = world.Npcs.Values
-            .Where(candidate => candidate.IsAlive && candidate.Id != npc.Id && candidate.CurrentLocationId == npc.CurrentLocationId && candidate.Profession.Type == ProfessionType.Healer)
-            .OrderByDescending(candidate => candidate.Profession.Skill)
-            .ThenByDescending(candidate => GetRelationshipTrust(candidate, npc.Id))
-            .ThenBy(candidate => candidate.Id)
-            .FirstOrDefault();
+        var healer = FindHealer(world, npc);
         if (healer is null || healer.Profession.Skill < 20) return false;
 
         var diagnosis = world.Medicine.Diagnose(healer, npc, world.Time.Day);
@@ -114,6 +111,51 @@ public sealed class NpcAutonomySystem
         npc.History.Add("Soin", npc.AgeYears, $"Cherche des soins auprès de {healer.Identity.DisplayName} pour {condition.Name}.");
         healer.History.Add("Soin", healer.AgeYears, $"Soigne {npc.Identity.DisplayName} pour {condition.Name}.");
         LastActions.Add($"{npc.Identity.DisplayName} reçoit des soins de {healer.Identity.DisplayName}.");
+        return true;
+    }
+
+    private static Npc? FindHealer(WorldState world, Npc npc)
+        => world.Npcs.Values
+            .Where(candidate => candidate.IsAlive && candidate.Id != npc.Id && candidate.CurrentLocationId == npc.CurrentLocationId && candidate.Profession.Type == ProfessionType.Healer)
+            .OrderByDescending(candidate => candidate.Profession.Skill)
+            .ThenByDescending(candidate => GetRelationshipTrust(candidate, npc.Id))
+            .ThenBy(candidate => candidate.Id)
+            .FirstOrDefault();
+
+    private bool TryTravelToMedicalCare(WorldState world, Npc npc)
+    {
+        var condition = npc.Conditions.FirstOrDefault(c => c.Treatable && c.Severity >= 0.55);
+        if (condition is null || npc.CurrentLocationId is not Guid currentLocationId) return false;
+
+        var destination = world.Npcs.Values
+            .Where(candidate => candidate.IsAlive && candidate.Id != npc.Id && candidate.Profession.Type == ProfessionType.Healer && candidate.Profession.Skill >= 20 && candidate.CurrentLocationId is Guid locationId && locationId != currentLocationId && npc.KnownLocationIds.Contains(locationId))
+            .GroupBy(candidate => candidate.CurrentLocationId!.Value)
+            .Select(group => new
+            {
+                LocationId = group.Key,
+                BestSkill = group.Max(candidate => candidate.Profession.Skill),
+                Distance = world.Geography.GetRouteDistance(currentLocationId, group.Key)
+            })
+            .Where(x => !double.IsInfinity(x.Distance))
+            .OrderBy(x => x.Distance)
+            .ThenByDescending(x => x.BestSkill)
+            .ThenBy(x => x.LocationId)
+            .FirstOrDefault();
+        if (destination is null) return false;
+
+        var plan = world.Travel.Plan(world, npc, destination.LocationId, MovementMethod.Walk);
+        if (plan is null) return false;
+        _pendingTravels[npc.Id] = new PendingTravel
+        {
+            DestinationId = destination.LocationId,
+            BuildingId = Guid.Empty,
+            RemainingMinutes = plan.DurationMinutes,
+            DistanceKm = plan.DistanceKm,
+            Purpose = "soins"
+        };
+        var locationName = world.Geography.Locations[destination.LocationId].Name;
+        npc.History.Add("Déplacement", npc.AgeYears, $"Part vers {locationName} pour chercher des soins ({plan.DistanceKm:0.#} km, environ {plan.DurationMinutes} min à pied).");
+        LastActions.Add($"{npc.Identity.DisplayName} part chercher des soins à {locationName}.");
         return true;
     }
 
@@ -234,7 +276,7 @@ public sealed class NpcAutonomySystem
         if (!npc.KnownLocationIds.Contains(building.LocationId)) return false;
         var plan = world.Travel.Plan(world, npc, building.LocationId, MovementMethod.Walk);
         if (plan is null) return false;
-        _pendingTravels[npc.Id] = new PendingTravel { DestinationId = building.LocationId, BuildingId = building.Id, RemainingMinutes = plan.DurationMinutes, DistanceKm = plan.DistanceKm };
+        _pendingTravels[npc.Id] = new PendingTravel { DestinationId = building.LocationId, BuildingId = building.Id, RemainingMinutes = plan.DurationMinutes, DistanceKm = plan.DistanceKm, Purpose = "travail" };
         npc.History.Add("Déplacement", npc.AgeYears, $"Part vers {world.Geography.Locations[building.LocationId].Name} pour rejoindre son travail ({plan.DistanceKm:0.#} km, environ {plan.DurationMinutes} min à pied).");
         LastActions.Add($"{npc.Identity.DisplayName} part travailler.");
         return true;
