@@ -28,9 +28,9 @@ jobs:
       - name: Build C# project
         run: |
           dotnet build Murim.io.csproj --configuration Debug --no-restore
-      - name: Import generated C# assembly into Godot
+      - name: Build and import C# assembly into Godot
         run: |
-          "$GODOT_BIN" --headless --path . --editor --quit
+          "$GODOT_BIN" --headless --path . --editor --build-solutions --quit
       - name: Verify generated Godot assembly
         run: |
           test -f .godot/mono/assemblies/Debug/Murim.io.dll
