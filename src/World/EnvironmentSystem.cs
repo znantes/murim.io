@@ -45,6 +45,14 @@ public sealed class EnvironmentSystem
         return state;
     }
 
+    public void Initialize(GeographySystem geography, int seed)
+    {
+        ArgumentNullException.ThrowIfNull(geography);
+        states.Clear();
+        foreach (var location in geography.Locations.Values.OrderBy(l => l.Id))
+            states[location.Id] = new EnvironmentState();
+    }
+
     public void AdvanceDay(WorldState world, int seed)
     {
         var random = new Random(HashCode.Combine(seed, (int)world.Time.Day));
