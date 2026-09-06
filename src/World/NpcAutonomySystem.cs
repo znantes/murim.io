@@ -29,7 +29,7 @@ public sealed class NpcAutonomySystem
             var random = new Random(DeterministicRandomSeed.Create(world.WorldSeed + 71, world.Time.Day * 120 + world.Time.MinuteOfDay, npc.Id));
             if (TrySatisfyCriticalNeed(world, npc)) continue;
             if (TryWork(world, npc)) continue;
-            if (random.NextDouble() < 0.35) TrySocialize(world, npc, random);
+            _ = random;
         }
     }
 
@@ -78,7 +78,9 @@ public sealed class NpcAutonomySystem
 
     private bool TryWork(WorldState world, Npc npc)
     {
-        if (world.Time.Period is Murim.Simulation.TimePeriod.Night || npc.Needs.Fatigue >= 65 || !world.Employment.IsEmployed(npc)) return false;
+        // Employment.WorkHour pays exactly one hour. Only execute it on the hour so
+        // the 30-minute autonomy tick cannot accidentally double an NPC's wage.
+        if (world.Time.Period is Murim.Simulation.TimePeriod.Night || world.Time.MinuteOfDay % 60 != 0 || npc.Needs.Fatigue >= 65 || !world.Employment.IsEmployed(npc)) return false;
         if (!world.Employment.Contracts.TryGetValue(npc.Id, out var contract)) return false;
         if (contract.BuildingId is not Guid buildingId || !world.Buildings.Buildings.TryGetValue(buildingId, out var building)) return false;
         if (npc.CurrentLocationId != building.LocationId) return false;
@@ -91,26 +93,6 @@ public sealed class NpcAutonomySystem
         npc.Needs.Exert(4);
         npc.History.Add("Travail", npc.AgeYears, $"Travaille comme {contract.ProfessionType} et gagne {wage:0.##}.");
         LastActions.Add($"{npc.Identity.DisplayName} travaille.");
-        return true;
-    }
-
-    private bool TrySocialize(WorldState world, Npc npc, Random random)
-    {
-        if (npc.CurrentLocationId is not Guid locationId) return false;
-        var other = world.Npcs.Values.Where(n => n.IsAlive && n.Id != npc.Id && n.Id != world.PlayerNpc?.Id && n.CurrentLocationId == locationId && n.AgeYears >= 4).OrderBy(n => n.Id).ToList();
-        if (other.Count == 0) return false;
-        var target = other[random.Next(other.Count)];
-        var relationship = npc.Relationships.FirstOrDefault(r => r.ToNpcId == target.Id && r.IsActive);
-        if (relationship is null)
-        {
-            relationship = new Relationship { FromNpcId = npc.Id, ToNpcId = target.Id, Type = RelationshipType.Acquaintance, Affinity = 0.05, Trust = 0.1, Respect = 0.1 };
-            npc.Relationships.Add(relationship);
-            var reverse = target.Relationships.FirstOrDefault(r => r.ToNpcId == npc.Id && r.IsActive);
-            if (reverse is null) target.Relationships.Add(new Relationship { FromNpcId = target.Id, ToNpcId = npc.Id, Type = RelationshipType.Acquaintance, Affinity = 0.05, Trust = 0.1, Respect = 0.1 });
-        }
-        relationship.Shift(0.02, 0.01, 0.01);
-        npc.History.Add("Vie sociale", npc.AgeYears, $"Échange quelques mots avec {target.Identity.DisplayName}.");
-        LastActions.Add($"{npc.Identity.DisplayName} parle avec {target.Identity.DisplayName}.");
         return true;
     }
 }
