@@ -131,6 +131,12 @@ public sealed class AutonomousInformationSystem
         if (knownLocations.Length == 0)
             return Guid.Empty;
 
+        if (world.Employment.Contracts.TryGetValue(target.Id, out var contract) && contract.BuildingId is Guid buildingId && world.Buildings.Buildings.TryGetValue(buildingId, out var workplace))
+        {
+            if (knownLocations.Contains(workplace.LocationId))
+                return workplace.LocationId;
+        }
+
         if (target.Needs.Thirst >= 70)
         {
             var waterLocation = knownLocations
