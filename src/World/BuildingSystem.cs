@@ -102,9 +102,14 @@ public sealed class BuildingSystem
 
     public void InitializeStarterBuildings(WorldState world)
     {
-        var village = world.Geography.Locations.Values.First(l => l.Name == "Village du Berceau");
-        var market = world.Geography.Locations.Values.First(l => l.Name == "Bourg de la Rivière");
-        var temple = world.Geography.Locations.Values.First(l => l.Name == "Temple de l’Aube");
+        ArgumentNullException.ThrowIfNull(world);
+
+        var village = world.Geography.Locations.Values.FirstOrDefault(l => l.Type == LocationType.Village)
+            ?? throw new InvalidOperationException("La géographie initiale ne contient aucun village.");
+        var market = world.Geography.Locations.Values.FirstOrDefault(l => l.Type == LocationType.Town)
+            ?? throw new InvalidOperationException("La géographie initiale ne contient aucun bourg.");
+        var temple = world.Geography.Locations.Values.FirstOrDefault(l => l.Type == LocationType.Temple)
+            ?? throw new InvalidOperationException("La géographie initiale ne contient aucun temple.");
 
         Add(new Building { Name = "Maison du Berceau", Type = BuildingType.House, Access = BuildingAccess.Residents, LocationId = village.Id, Description = "Une maison familiale simple où les habitants dorment et vivent.", Capacity = 8, OpenMorning = true, OpenAfternoon = true, OpenEvening = true, OpenNight = true });
         Add(new Building { Name = "Auberge de la Rivière", Type = BuildingType.Inn, Access = BuildingAccess.Customers, LocationId = market.Id, Description = "Une auberge où voyageurs, marchands et habitants se rencontrent.", Capacity = 30, OpenMorning = true, OpenAfternoon = true, OpenEvening = true, OpenNight = false });
