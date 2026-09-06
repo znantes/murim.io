@@ -7,6 +7,7 @@ namespace Murim.Game;
 public partial class GameHud : Control
 {
     private readonly PlayerCommandService _commands = new();
+    private readonly ContextualActionSystem _contextualActions = new();
     private WorldState _world = null!;
     private Label _time = null!;
     private Label _character = null!;
@@ -15,6 +16,7 @@ public partial class GameHud : Control
     private RichTextLabel _log = null!;
     private LineEdit _input = null!;
     private TabContainer _tabs = null!;
+    private VBoxContainer _actions = null!;
     private double _realTimeAccumulator;
     private readonly Dictionary<string, RichTextLabel> _panels = new();
 
@@ -73,6 +75,16 @@ public partial class GameHud : Control
         _character = AddHeaderLabel(header, "Personnage");
         _location = AddHeaderLabel(header, "Lieu");
         _needs = AddHeaderLabel(header, "Besoins");
+
+        var actionsFrame = new VBoxContainer();
+        actionsFrame.AddThemeConstantOverride("separation", 4);
+        root.AddChild(actionsFrame);
+        var actionsTitle = new Label { Text = "Actions contextuelles" };
+        actionsTitle.AddThemeFontSizeOverride("font_size", 16);
+        actionsFrame.AddChild(actionsTitle);
+        _actions = new VBoxContainer { SizeFlagsVertical = SizeFlags.ShrinkCenter };
+        _actions.AddThemeConstantOverride("separation", 3);
+        actionsFrame.AddChild(_actions);
 
         _tabs = new TabContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
         root.AddChild(_tabs);
@@ -137,6 +149,11 @@ public partial class GameHud : Control
         _input.GrabFocus();
     }
 
+    private void ExecuteContextualAction(ContextualAction action)
+    {
+        OnCommandSubmitted(action.Command);
+    }
+
     private void Refresh()
     {
         var player = _world.PlayerNpc;
@@ -147,6 +164,7 @@ public partial class GameHud : Control
         var location = player.CurrentLocationId is Guid id && _world.Geography.Locations.TryGetValue(id, out var loc) ? loc.Name : "Inconnu";
         _location.Text = $"📍 {location}";
         _needs.Text = $"Faim {player.Needs.Hunger:0} · Soif {player.Needs.Thirst:0} · Fatigue {player.Needs.Fatigue:0}";
+        RefreshContextualActions(player);
 
         _panels["Profil"].Text = BuildProfileText(player);
         _panels["Corps"].Text = BuildBodyText(player);
@@ -157,6 +175,27 @@ public partial class GameHud : Control
         _panels["Inventaire"].Text = BuildInventoryText(player);
         _panels["Journal"].Text = BuildJournalText(player);
         _panels["Monde"].Text = BuildWorldText(player);
+    }
+
+    private void RefreshContextualActions(Npc player)
+    {
+        foreach (var child in _actions.GetChildren()) child.QueueFree();
+        var available = _contextualActions.GetAvailable(_world, player).Take(10).ToArray();
+        if (available.Length == 0)
+        {
+            _actions.AddChild(new Label { Text = "Aucune action contextuelle disponible." });
+            return;
+        }
+
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 5);
+        _actions.AddChild(row);
+        foreach (var action in available)
+        {
+            var button = new Button { Text = action.Label, TooltipText = action.Command, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+            button.Pressed += () => ExecuteContextualAction(action);
+            row.AddChild(button);
+        }
     }
 
     private string BuildProfileText(Npc player) =>
