@@ -26,10 +26,8 @@ public sealed class NpcAutonomySystem
         foreach (var npc in world.Npcs.Values.Where(n => n.IsAlive && n.Id != world.PlayerNpc?.Id).OrderBy(n => n.Id))
         {
             if (npc.AgeYears < 4) continue;
-            var random = new Random(DeterministicRandomSeed.Create(world.WorldSeed + 71, world.Time.Day * 120 + world.Time.MinuteOfDay, npc.Id));
             if (TrySatisfyCriticalNeed(world, npc)) continue;
-            if (TryWork(world, npc)) continue;
-            _ = random;
+            TryWork(world, npc);
         }
     }
 
