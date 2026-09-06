@@ -38,8 +38,8 @@ public sealed class AutonomousInformationSystem
                 continue;
 
             world.Information.Spread(world, source, target, known);
-            source.History.Add("Rumeur", source.AgeYears, $"Transmet une information à {target.Identity.Name}.");
-            target.History.Add("Rumeur", target.AgeYears, $"Entend une information transmise par {source.Identity.Name}.");
+            source.History.Add("Rumeur", source.AgeYears, $"Transmet une information à {target.Identity.DisplayName}.");
+            target.History.Add("Rumeur", target.AgeYears, $"Entend une information transmise par {source.Identity.DisplayName}.");
         }
     }
 }
