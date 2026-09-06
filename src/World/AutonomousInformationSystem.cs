@@ -42,10 +42,7 @@ public sealed class AutonomousInformationSystem
                 continue;
             }
 
-            var locationId = source.KnownLocationIds
-                .Where(id => id != source.CurrentLocationId && !target.KnownLocationIds.Contains(id) && world.Geography.Locations.ContainsKey(id))
-                .OrderBy(id => id)
-                .FirstOrDefault();
+            var locationId = FindUsefulLocation(world, source, target);
             if (locationId == Guid.Empty || !world.Geography.Locations.TryGetValue(locationId, out var location))
                 continue;
 
@@ -60,5 +57,50 @@ public sealed class AutonomousInformationSystem
             source.History.Add("Information", source.AgeYears, $"Indique à {target.Identity.DisplayName} comment rejoindre {location.Name}.");
             target.History.Add("Information", target.AgeYears, $"Apprend l'existence de {location.Name} grâce à {source.Identity.DisplayName}.");
         }
+    }
+
+    private static Guid FindUsefulLocation(WorldState world, Npc source, Npc target)
+    {
+        var knownLocations = source.KnownLocationIds
+            .Where(id => id != source.CurrentLocationId && !target.KnownLocationIds.Contains(id) && world.Geography.Locations.ContainsKey(id))
+            .ToArray();
+
+        if (knownLocations.Length == 0)
+            return Guid.Empty;
+
+        if (target.Needs.Thirst >= 70)
+        {
+            var waterLocation = knownLocations
+                .Where(id => world.Commerce.Businesses.Values.Any(b => b.Active && b.LocationId == id && b.OwnerNpcId != target.Id && b.Stock.Any(s => s.Quantity > 0 && world.Inventory.Items.TryGetValue(s.ItemId, out var item) && item.Consumable && item.Category == ItemCategory.Food && string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase))))
+                .OrderBy(id => world.Geography.GetRouteDistance(source.CurrentLocationId!.Value, id))
+                .ThenBy(id => id)
+                .FirstOrDefault();
+            if (waterLocation != Guid.Empty)
+                return waterLocation;
+        }
+
+        if (target.Needs.Hunger >= 70)
+        {
+            var foodLocation = knownLocations
+                .Where(id => world.Commerce.Businesses.Values.Any(b => b.Active && b.LocationId == id && b.OwnerNpcId != target.Id && b.Stock.Any(s => s.Quantity > 0 && world.Inventory.Items.TryGetValue(s.ItemId, out var item) && item.Consumable && item.Category == ItemCategory.Food && !string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase))))
+                .OrderBy(id => world.Geography.GetRouteDistance(source.CurrentLocationId!.Value, id))
+                .ThenBy(id => id)
+                .FirstOrDefault();
+            if (foodLocation != Guid.Empty)
+                return foodLocation;
+        }
+
+        var healerLocation = knownLocations
+            .Where(id => world.Npcs.Values.Any(n => n.IsAlive && n.Profession.Type == ProfessionType.Healer && n.Profession.Skill >= 20 && n.CurrentLocationId == id))
+            .OrderBy(id => world.Geography.GetRouteDistance(source.CurrentLocationId!.Value, id))
+            .ThenBy(id => id)
+            .FirstOrDefault();
+        if (healerLocation != Guid.Empty)
+            return healerLocation;
+
+        return knownLocations
+            .OrderBy(id => world.Geography.GetRouteDistance(source.CurrentLocationId!.Value, id))
+            .ThenBy(id => id)
+            .FirstOrDefault();
     }
 }
