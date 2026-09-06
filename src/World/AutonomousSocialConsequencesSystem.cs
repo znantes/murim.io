@@ -36,10 +36,10 @@ public sealed class AutonomousSocialConsequencesSystem
 
             world.Reputation.Apply(world, seller.Id, 0.25, "Local", 1);
             AdjustRelationship(buyer, seller, 0.025, 0.02, 0.02);
-            Publish(world, buyer, "Commerce", $"{buyer.Identity.Name} a acheté auprès de {seller.Identity.Name} à {business.Name}.", seller.Id, business.LocationId, InformationReliability.Verified, 0.15);
-            Publish(world, seller, "Commerce", $"{seller.Identity.Name} a vendu à {buyer.Identity.Name} à {business.Name}.", seller.Id, business.LocationId, InformationReliability.Verified, 0.15);
-            buyer.History.Add("Commerce", buyer.AgeYears, $"Achète à {seller.Identity.Name} dans {business.Name}.");
-            seller.History.Add("Commerce", seller.AgeYears, $"Vend à {buyer.Identity.Name} dans {business.Name}.");
+            Publish(world, buyer, "Commerce", $"{buyer.Identity.DisplayName} a acheté auprès de {seller.Identity.DisplayName} à {business.Name}.", seller.Id, business.LocationId, InformationReliability.Verified, 0.15);
+            Publish(world, seller, "Commerce", $"{seller.Identity.DisplayName} a vendu à {buyer.Identity.DisplayName} à {business.Name}.", seller.Id, business.LocationId, InformationReliability.Verified, 0.15);
+            buyer.History.Add("Commerce", buyer.AgeYears, $"Achète à {seller.Identity.DisplayName} dans {business.Name}.");
+            seller.History.Add("Commerce", seller.AgeYears, $"Vend à {buyer.Identity.DisplayName} dans {business.Name}.");
             LastEvents.Add($"Commerce : {buyer.Identity.DisplayName} traite avec {seller.Identity.DisplayName}.");
         }
     }
@@ -57,13 +57,13 @@ public sealed class AutonomousSocialConsequencesSystem
                 var hostile = condition.Type is ConditionType.Fracture;
                 var polarity = hostile ? -0.65 : -0.20;
                 var text = hostile
-                    ? $"{patient.Identity.Name} a été blessé lors d'un incident impliquant {source.Identity.Name}."
-                    : $"{patient.Identity.Name} a subi un incident impliquant {source.Identity.Name}.";
+                    ? $"{patient.Identity.DisplayName} a été blessé lors d'un incident impliquant {source.Identity.DisplayName}."
+                    : $"{patient.Identity.DisplayName} a subi un incident impliquant {source.Identity.DisplayName}.";
                 world.Reputation.Apply(world, source.Id, polarity * 2.5, "Local", 1);
                 AdjustRelationship(patient, source, polarity * 0.08, polarity * 0.05, polarity * 0.04);
                 Publish(world, patient, "Incident", text, source.Id, patient.CurrentLocationId, InformationReliability.Unverified, polarity);
                 patient.History.Add("Incident", patient.AgeYears, text);
-                source.History.Add("Incident", source.AgeYears, $"Est impliqué dans un incident avec {patient.Identity.Name}.");
+                source.History.Add("Incident", source.AgeYears, $"Est impliqué dans un incident avec {patient.Identity.DisplayName}.");
                 LastEvents.Add($"Incident : {patient.Identity.DisplayName} est blessé.");
             }
         }
@@ -108,9 +108,9 @@ public sealed class AutonomousSocialConsequencesSystem
         recipient.ApplyWealthChange(amount);
         AdjustRelationship(helper, recipient, 0.12, 0.08, 0.06);
         world.Reputation.Apply(world, helper.Id, 2.0, "Local", 2);
-        var text = $"{helper.Identity.Name} aide {recipient.Identity.Name} spontanément.";
+        var text = $"{helper.Identity.DisplayName} aide {recipient.Identity.DisplayName} spontanément.";
         helper.History.Add("Aide", helper.AgeYears, text);
-        recipient.History.Add("Aide", recipient.AgeYears, $"Reçoit l'aide de {helper.Identity.Name}.");
+        recipient.History.Add("Aide", recipient.AgeYears, $"Reçoit l'aide de {helper.Identity.DisplayName}.");
         Publish(world, helper, "Aide", text, helper.Id, helper.CurrentLocationId, InformationReliability.Verified, 0.85);
     }
 
@@ -119,7 +119,7 @@ public sealed class AutonomousSocialConsequencesSystem
         AdjustRelationship(first, second, 0.06, 0.05, 0.04);
         world.Reputation.Apply(world, first.Id, 0.8, "Local", 2);
         world.Reputation.Apply(world, second.Id, 0.4, "Local", 2);
-        var text = $"{first.Identity.Name} et {second.Identity.Name} concluent un échange honnête.";
+        var text = $"{first.Identity.DisplayName} et {second.Identity.DisplayName} concluent un échange honnête.";
         first.History.Add("Commerce", first.AgeYears, text);
         second.History.Add("Commerce", second.AgeYears, text);
         Publish(world, first, "Commerce", text, first.Id, first.CurrentLocationId, InformationReliability.Verified, 0.45);
@@ -133,9 +133,9 @@ public sealed class AutonomousSocialConsequencesSystem
         thief.ApplyWealthChange(amount);
         AdjustRelationship(thief, victim, -0.20, -0.18, -0.12);
         world.Reputation.Apply(world, thief.Id, -4.5, "Local", 2);
-        var text = $"{thief.Identity.Name} vole une partie des biens de {victim.Identity.Name}.";
+        var text = $"{thief.Identity.DisplayName} vole une partie des biens de {victim.Identity.DisplayName}.";
         thief.History.Add("Crime", thief.AgeYears, text);
-        victim.History.Add("Crime", victim.AgeYears, $"Subit un vol commis par {thief.Identity.Name}.");
+        victim.History.Add("Crime", victim.AgeYears, $"Subit un vol commis par {thief.Identity.DisplayName}.");
         Publish(world, victim, "Crime", text, thief.Id, victim.CurrentLocationId, InformationReliability.Unverified, -0.95);
     }
 
@@ -146,7 +146,7 @@ public sealed class AutonomousSocialConsequencesSystem
         var severity = 0.12 + random.NextDouble() * 0.20;
         world.Medicine.Inflict(patient, ConditionType.Fracture, "Blessure accidentelle", severity, severity, world.Time.Day, false, 14, bystander.Id);
         AdjustRelationship(bystander, patient, -0.02, 0.01, 0.0);
-        var text = $"Un accident blesse {patient.Identity.Name} en présence de {bystander.Identity.Name}.";
+        var text = $"Un accident blesse {patient.Identity.DisplayName} en présence de {bystander.Identity.DisplayName}.";
         patient.History.Add("Accident", patient.AgeYears, text);
         Publish(world, patient, "Accident", text, patient.Id, patient.CurrentLocationId, InformationReliability.Plausible, -0.15);
     }
@@ -159,9 +159,9 @@ public sealed class AutonomousSocialConsequencesSystem
         exploiter.ApplyWealthChange(amount);
         AdjustRelationship(exploiter, target, -0.12, -0.10, -0.08);
         world.Reputation.Apply(world, exploiter.Id, -2.5, "Local", 2);
-        var text = $"{exploiter.Identity.Name} profite de la vulnérabilité de {target.Identity.Name}.";
+        var text = $"{exploiter.Identity.DisplayName} profite de la vulnérabilité de {target.Identity.DisplayName}.";
         exploiter.History.Add("Abus", exploiter.AgeYears, text);
-        target.History.Add("Abus", target.AgeYears, $"Est exploité par {exploiter.Identity.Name}.");
+        target.History.Add("Abus", target.AgeYears, $"Est exploité par {exploiter.Identity.DisplayName}.");
         Publish(world, target, "Abus", text, exploiter.Id, target.CurrentLocationId, InformationReliability.Unverified, -0.75);
     }
 
