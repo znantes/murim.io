@@ -78,7 +78,7 @@ public sealed class NpcAutonomySystem
 
     private bool TryWork(WorldState world, Npc npc)
     {
-        if (world.Time.Period is TimePeriod.Night || npc.Needs.Fatigue >= 65 || !world.Employment.IsEmployed(npc)) return false;
+        if (world.Time.Period is Murim.Simulation.TimePeriod.Night || npc.Needs.Fatigue >= 65 || !world.Employment.IsEmployed(npc)) return false;
         if (!world.Employment.Contracts.TryGetValue(npc.Id, out var contract)) return false;
         if (contract.BuildingId is not Guid buildingId || !world.Buildings.Buildings.TryGetValue(buildingId, out var building)) return false;
         if (npc.CurrentLocationId != building.LocationId) return false;
