@@ -79,7 +79,7 @@ public sealed class AutonomousInformationSystem
     private static Npc? FindUsefulPerson(WorldState world, Npc source, Npc target)
     {
         var knownLocations = source.KnownLocationIds
-            .Where(id => id != source.CurrentLocationId && !target.KnownLocationIds.Contains(id) && world.Geography.Locations.ContainsKey(id))
+            .Where(id => id != source.CurrentLocationId && !target.KnownLocationIds.Contains(id) && world.Geography.Locations.ContainsKey(id) && !double.IsInfinity(world.Geography.GetRouteDistance(source.CurrentLocationId!.Value, id)))
             .ToArray();
         if (knownLocations.Length == 0)
             return null;
@@ -125,7 +125,7 @@ public sealed class AutonomousInformationSystem
     private static Guid FindUsefulLocation(WorldState world, Npc source, Npc target)
     {
         var knownLocations = source.KnownLocationIds
-            .Where(id => id != source.CurrentLocationId && !target.KnownLocationIds.Contains(id) && world.Geography.Locations.ContainsKey(id))
+            .Where(id => id != source.CurrentLocationId && !target.KnownLocationIds.Contains(id) && world.Geography.Locations.ContainsKey(id) && !double.IsInfinity(world.Geography.GetRouteDistance(source.CurrentLocationId!.Value, id)))
             .ToArray();
 
         if (knownLocations.Length == 0)
