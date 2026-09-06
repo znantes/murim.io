@@ -2,54 +2,32 @@ using Murim.Simulation;
 
 namespace Murim.World;
 
-public enum BuildingType
-{
-    House,
-    Inn,
-    Shop,
-    Workshop,
-    Clinic,
-    Temple,
-    SectHall,
-    Fortress,
-    Warehouse,
-    Farmhouse,
-    Government
-}
-
-public enum BuildingAccess
-{
-    Public,
-    Residents,
-    Customers,
-    Workers,
-    Members,
-    Restricted
-}
+public enum BuildingType { House, Inn, Shop, Workshop, Clinic, Temple, Farmhouse, Warehouse, Administrative, School }
+public enum BuildingAccess { Public, Customers, Workers, Members, FamilyOnly, Restricted }
 
 public sealed class Building
 {
     public Guid Id { get; } = Guid.NewGuid();
-    public string Name { get; set; } = "Bâtiment inconnu";
-    public BuildingType Type { get; set; } = BuildingType.House;
-    public BuildingAccess Access { get; set; } = BuildingAccess.Public;
-    public Guid LocationId { get; set; }
-    public string Description { get; set; } = string.Empty;
-    public int Capacity { get; set; } = 10;
-    public bool OpenMorning { get; set; } = true;
-    public bool OpenAfternoon { get; set; } = true;
-    public bool OpenEvening { get; set; } = false;
-    public bool OpenNight { get; set; } = false;
+    public string Name { get; init; } = string.Empty;
+    public BuildingType Type { get; init; }
+    public BuildingAccess Access { get; init; }
+    public Guid LocationId { get; init; }
+    public string Description { get; init; } = string.Empty;
+    public int Capacity { get; init; }
+    public bool OpenMorning { get; init; }
+    public bool OpenAfternoon { get; init; }
+    public bool OpenEvening { get; init; }
+    public bool OpenNight { get; init; }
     public List<Guid> ResidentNpcIds { get; } = new();
     public List<Guid> WorkerNpcIds { get; } = new();
+    public List<Guid> MemberNpcIds { get; } = new();
 
     public bool IsOpen(TimePeriod period) => period switch
     {
         TimePeriod.Morning => OpenMorning,
         TimePeriod.Afternoon => OpenAfternoon,
         TimePeriod.Evening => OpenEvening,
-        TimePeriod.Night => OpenNight,
-        _ => false
+        _ => OpenNight
     };
 }
 
@@ -67,43 +45,30 @@ public sealed class BuildingSystem
 
     public bool TryGet(Guid id, out Building? building) => Buildings.TryGetValue(id, out building);
 
-    public bool CanEnter(WorldState world, Npc actor, Building building, out string reason)
+    public bool CanEnter(WorldState world, Npc npc, Building building, out string reason)
     {
-        if (!building.IsOpen(world.Time.Period) && building.Access is not BuildingAccess.Residents)
-        {
-            reason = $"{building.Name} est fermé pendant la période {world.Time.Period}.";
-            return false;
-        }
-
+        ArgumentNullException.ThrowIfNull(world); ArgumentNullException.ThrowIfNull(npc); ArgumentNullException.ThrowIfNull(building);
+        if (!building.IsOpen(world.Time.Period)) { reason = "Le bâtiment est fermé à cette période."; return false; }
+        if (building.Capacity > 0 && Occupants(world, building).Count() >= building.Capacity) { reason = "Le bâtiment est complet."; return false; }
         var allowed = building.Access switch
         {
             BuildingAccess.Public or BuildingAccess.Customers => true,
-            BuildingAccess.Residents => building.ResidentNpcIds.Contains(actor.Id),
-            BuildingAccess.Workers => building.WorkerNpcIds.Contains(actor.Id),
-            BuildingAccess.Members => false,
-            BuildingAccess.Restricted => false,
+            BuildingAccess.Workers => building.WorkerNpcIds.Contains(npc.Id) || world.Employment.Contracts.TryGetValue(npc.Id, out var c) && c.BuildingId == building.Id,
+            BuildingAccess.Members => building.MemberNpcIds.Contains(npc.Id),
+            BuildingAccess.FamilyOnly => building.ResidentNpcIds.Contains(npc.Id),
             _ => false
         };
-
-        if (!allowed)
-        {
-            reason = $"L'accès à {building.Name} est réservé ({building.Access}).";
-            return false;
-        }
-
+        if (!allowed) { reason = "Tu n'as pas accès à ce bâtiment."; return false; }
         reason = string.Empty;
         return true;
     }
 
     public IEnumerable<Npc> Occupants(WorldState world, Building building)
-    {
-        return world.Npcs.Values.Where(n => n.IsAlive && n.CurrentBuildingId == building.Id).Take(building.Capacity);
-    }
+        => world.Npcs.Values.Where(n => n.IsAlive && n.CurrentBuildingId == building.Id);
 
     public void InitializeStarterBuildings(WorldState world)
     {
         ArgumentNullException.ThrowIfNull(world);
-
         var village = world.Geography.Locations.Values.FirstOrDefault(l => l.Type == LocationType.Village)
             ?? throw new InvalidOperationException("La géographie initiale ne contient aucun village.");
         var market = world.Geography.Locations.Values.FirstOrDefault(l => l.Type == LocationType.Town)
@@ -111,19 +76,19 @@ public sealed class BuildingSystem
         var temple = world.Geography.Locations.Values.FirstOrDefault(l => l.Type == LocationType.Temple)
             ?? throw new InvalidOperationException("La géographie initiale ne contient aucun temple.");
 
-        Add(new Building { Name = "Maison du Berceau", Type = BuildingType.House, Access = BuildingAccess.Residents, LocationId = village.Id, Description = "Une maison familiale simple où les habitants dorment et vivent.", Capacity = 8, OpenMorning = true, OpenAfternoon = true, OpenEvening = true, OpenNight = true });
-        Add(new Building { Name = "Auberge de la Rivière", Type = BuildingType.Inn, Access = BuildingAccess.Customers, LocationId = market.Id, Description = "Une auberge où voyageurs, marchands et habitants se rencontrent.", Capacity = 30, OpenMorning = true, OpenAfternoon = true, OpenEvening = true, OpenNight = false });
-        Add(new Building { Name = "Échoppe du Tisserand", Type = BuildingType.Shop, Access = BuildingAccess.Customers, LocationId = market.Id, Description = "Une petite boutique de tissus et vêtements.", Capacity = 12, OpenMorning = true, OpenAfternoon = true, OpenEvening = false, OpenNight = false });
-        Add(new Building { Name = "Atelier du Forgeron", Type = BuildingType.Workshop, Access = BuildingAccess.Customers, LocationId = market.Id, Description = "Un atelier où l'on fabrique et répare des outils et armes.", Capacity = 10, OpenMorning = true, OpenAfternoon = true, OpenEvening = false, OpenNight = false });
-        Add(new Building { Name = "Dispensaire du Bourg", Type = BuildingType.Clinic, Access = BuildingAccess.Public, LocationId = market.Id, Description = "Un lieu de soins pour les habitants et voyageurs.", Capacity = 15, OpenMorning = true, OpenAfternoon = true, OpenEvening = true, OpenNight = false });
-        Add(new Building { Name = "Sanctuaire de l’Aube", Type = BuildingType.Temple, Access = BuildingAccess.Public, LocationId = temple.Id, Description = "Un sanctuaire ouvert aux croyants et aux curieux.", Capacity = 40, OpenMorning = true, OpenAfternoon = true, OpenEvening = true, OpenNight = false });
+        Add(new Building { Name = "Maison du Berceau", Type = BuildingType.House, Access = BuildingAccess.FamilyOnly, LocationId = village.Id, Description = "Une petite maison familiale.", Capacity = 6, OpenMorning = true, OpenAfternoon = true, OpenEvening = true, OpenNight = true });
+        Add(new Building { Name = "Auberge de la Rivière", Type = BuildingType.Inn, Access = BuildingAccess.Public, LocationId = village.Id, Description = "Une auberge simple où voyageurs et habitants peuvent manger et dormir.", Capacity = 24, OpenMorning = true, OpenAfternoon = true, OpenEvening = true, OpenNight = true });
+        Add(new Building { Name = "Échoppe du Tisserand", Type = BuildingType.Shop, Access = BuildingAccess.Customers, LocationId = market.Id, Description = "Une boutique de tissus et d'articles courants.", Capacity = 12, OpenMorning = true, OpenAfternoon = true, OpenEvening = true });
+        Add(new Building { Name = "Atelier du Forgeron", Type = BuildingType.Workshop, Access = BuildingAccess.Workers, LocationId = market.Id, Description = "Un atelier où sont fabriqués et réparés des outils et armes.", Capacity = 8, OpenMorning = true, OpenAfternoon = true, OpenEvening = true });
+        Add(new Building { Name = "Dispensaire du Bourg", Type = BuildingType.Clinic, Access = BuildingAccess.Public, LocationId = market.Id, Description = "Un lieu de soins pour les habitants et voyageurs.", Capacity = 15, OpenMorning = true, OpenAfternoon = true, OpenEvening = true });
+        Add(new Building { Name = "Sanctuaire de l’Aube", Type = BuildingType.Temple, Access = BuildingAccess.Public, LocationId = temple.Id, Description = "Un sanctuaire ouvert aux croyants et aux curieux.", Capacity = 40, OpenMorning = true, OpenAfternoon = true, OpenEvening = true });
     }
 
     public void AdvanceDay(WorldState world)
     {
-        foreach (var npc in world.Npcs.Values.Where(n => n.IsAlive && n.CurrentBuildingId is not null))
+        foreach (var npc in world.Npcs.Values.Where(n => n.IsAlive && n.CurrentBuildingId is Guid buildingId))
         {
-            if (!Buildings.TryGetValue(npc.CurrentBuildingId.Value, out var building) || !building.IsOpen(world.Time.Period))
+            if (!Buildings.TryGetValue(buildingId, out var building) || !building.IsOpen(world.Time.Period))
                 npc.ExitBuilding();
         }
     }
