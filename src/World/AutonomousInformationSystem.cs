@@ -29,10 +29,7 @@ public sealed class AutonomousInformationSystem
                 continue;
 
             var target = candidates[random.Next(candidates.Length)];
-            var known = world.Information.HeardBy(source)
-                .Where(i => i.SubjectNpcId is not null && i.SubjectNpcId != source.Id)
-                .OrderByDescending(i => i.CreatedDay)
-                .FirstOrDefault();
+            var known = FindBestInformation(world, source, target);
 
             if (known is not null)
             {
@@ -74,6 +71,62 @@ public sealed class AutonomousInformationSystem
             source.History.Add("Information", source.AgeYears, $"Indique à {target.Identity.DisplayName} comment rejoindre {location.Name}.");
             target.History.Add("Information", target.AgeYears, $"Apprend l'existence de {location.Name} grâce à {source.Identity.DisplayName}.");
         }
+    }
+
+    private static InformationItem? FindBestInformation(WorldState world, Npc source, Npc target)
+    {
+        var urgentNeed = target.Needs.Thirst >= 85 || target.Needs.Hunger >= 85 || target.Conditions.Any(c => c.Treatable && c.Severity >= 0.55);
+        return world.Information.HeardBy(source)
+            .Where(i => !i.HeardByNpcIds.Contains(target.Id) && i.SubjectNpcId != source.Id)
+            .OrderByDescending(i => InformationPriority(world, source, target, i, urgentNeed))
+            .ThenByDescending(i => i.CreatedDay)
+            .ThenBy(i => i.Id)
+            .FirstOrDefault();
+    }
+
+    private static int InformationPriority(WorldState world, Npc source, Npc target, InformationItem item, bool urgentNeed)
+    {
+        var score = (int)item.Reliability * 10;
+
+        if (item.LocationId is Guid locationId && world.Geography.Locations.ContainsKey(locationId))
+        {
+            if (urgentNeed && IsUsefulLocation(world, target, locationId))
+                score += 100;
+            else if (!target.KnownLocationIds.Contains(locationId))
+                score += 20;
+        }
+
+        if (item.SubjectNpcId is Guid subjectId && world.Npcs.TryGetValue(subjectId, out var subject) && subject.IsAlive)
+        {
+            if (urgentNeed && IsUsefulPerson(world, target, subject))
+                score += 120;
+            else if (subjectId != target.Id)
+                score += 15;
+        }
+
+        var trust = source.Relationships.FirstOrDefault(r => r.ToNpcId == target.Id && r.IsActive)?.Trust ?? 0.2;
+        score += (int)Math.Round(Math.Clamp(trust, 0, 1) * 10);
+        return score;
+    }
+
+    private static bool IsUsefulPerson(WorldState world, Npc target, Npc person)
+    {
+        if (target.Conditions.Any(c => c.Treatable && c.Severity >= 0.55))
+            return person.Profession.Type == ProfessionType.Healer && person.Profession.Skill >= 20;
+
+        var need = target.Needs.Thirst >= 85 ? "eau" : target.Needs.Hunger >= 85 ? "nourriture" : null;
+        return need is not null && FindHelpItem(world, person, need) is not null;
+    }
+
+    private static bool IsUsefulLocation(WorldState world, Npc target, Guid locationId)
+    {
+        if (target.Needs.Thirst >= 85 && world.Commerce.Businesses.Values.Any(b => b.Active && b.LocationId == locationId && b.OwnerNpcId != target.Id && b.IsOpen(world.Time.Period) && b.Stock.Any(s => s.Quantity > 0 && world.Inventory.Items.TryGetValue(s.ItemId, out var item) && item.Consumable && item.Category == ItemCategory.Food && string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase))))
+            return true;
+
+        if (target.Needs.Hunger >= 85 && world.Commerce.Businesses.Values.Any(b => b.Active && b.LocationId == locationId && b.OwnerNpcId != target.Id && b.IsOpen(world.Time.Period) && b.Stock.Any(s => s.Quantity > 0 && world.Inventory.Items.TryGetValue(s.ItemId, out var item) && item.Consumable && item.Category == ItemCategory.Food && !string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase))))
+            return true;
+
+        return target.Conditions.Any(c => c.Treatable && c.Severity >= 0.55) && world.Npcs.Values.Any(n => n.IsAlive && n.Profession.Type == ProfessionType.Healer && n.Profession.Skill >= 20 && n.CurrentLocationId == locationId);
     }
 
     private static Npc? FindUsefulPerson(WorldState world, Npc source, Npc target)
