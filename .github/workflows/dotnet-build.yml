@@ -45,4 +45,14 @@ jobs:
       - name: Run headless game smoke test
         timeout-minutes: 2
         run: |
-          "$GODOT_BIN" --headless --path . --verbose --quit-after 5
+          set -o pipefail
+          "$GODOT_BIN" --headless --path . --verbose --quit-after 5 2>&1 | tee godot-smoke.log
+          godot_status=${PIPESTATUS[0]}
+          if [ "$godot_status" -ne 0 ]; then
+            echo "Godot exited with status $godot_status"
+            exit "$godot_status"
+          fi
+          if grep -E '(^ERROR:|SCRIPT ERROR|Unhandled exception|System\.[A-Za-z]+Exception)' godot-smoke.log; then
+            echo 'Godot reported a runtime error during the smoke test.'
+            exit 1
+          fi
