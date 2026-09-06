@@ -42,6 +42,23 @@ public sealed class AutonomousInformationSystem
                 continue;
             }
 
+            var usefulPerson = FindUsefulPerson(world, source, target);
+            if (usefulPerson is not null && usefulPerson.CurrentLocationId is Guid usefulLocationId && world.Geography.Locations.TryGetValue(usefulLocationId, out var usefulLocation))
+            {
+                var personInfo = world.Information.Publish(
+                    world,
+                    source,
+                    "Personne",
+                    $"{source.Identity.DisplayName} connaît {usefulPerson.Identity.DisplayName} à {usefulLocation.Name} et sait qu'il peut être utile.",
+                    subjectNpcId: usefulPerson.Id,
+                    locationId: usefulLocationId,
+                    reliability: InformationReliability.Verified);
+                world.Information.Spread(world, source, target, personInfo);
+                source.History.Add("Information", source.AgeYears, $"Indique à {target.Identity.DisplayName} une personne utile : {usefulPerson.Identity.DisplayName}.");
+                target.History.Add("Information", target.AgeYears, $"Apprend l'existence de {usefulPerson.Identity.DisplayName} grâce à {source.Identity.DisplayName}.");
+                continue;
+            }
+
             var locationId = FindUsefulLocation(world, source, target);
             if (locationId == Guid.Empty || !world.Geography.Locations.TryGetValue(locationId, out var location))
                 continue;
@@ -57,6 +74,52 @@ public sealed class AutonomousInformationSystem
             source.History.Add("Information", source.AgeYears, $"Indique à {target.Identity.DisplayName} comment rejoindre {location.Name}.");
             target.History.Add("Information", target.AgeYears, $"Apprend l'existence de {location.Name} grâce à {source.Identity.DisplayName}.");
         }
+    }
+
+    private static Npc? FindUsefulPerson(WorldState world, Npc source, Npc target)
+    {
+        var knownLocations = source.KnownLocationIds
+            .Where(id => id != source.CurrentLocationId && !target.KnownLocationIds.Contains(id) && world.Geography.Locations.ContainsKey(id))
+            .ToArray();
+        if (knownLocations.Length == 0)
+            return null;
+
+        if (target.Conditions.Any(c => c.Treatable && c.Severity >= 0.55))
+        {
+            var healer = world.Npcs.Values
+                .Where(n => n.IsAlive && n.Id != target.Id && n.Profession.Type == ProfessionType.Healer && n.Profession.Skill >= 20 && n.CurrentLocationId is Guid id && knownLocations.Contains(id))
+                .OrderByDescending(n => n.Profession.Skill)
+                .ThenBy(n => world.Geography.GetRouteDistance(source.CurrentLocationId!.Value, n.CurrentLocationId!.Value))
+                .ThenBy(n => n.Id)
+                .FirstOrDefault();
+            if (healer is not null)
+                return healer;
+        }
+
+        var need = target.Needs.Thirst >= 85 ? "eau" : target.Needs.Hunger >= 85 ? "nourriture" : null;
+        if (need is null)
+            return null;
+
+        return world.Npcs.Values
+            .Where(n => n.IsAlive && n.Id != target.Id && n.CurrentLocationId is Guid id && knownLocations.Contains(id) && FindHelpItem(world, n, need) is not null)
+            .OrderByDescending(n => n.Relationships.FirstOrDefault(r => r.ToNpcId == target.Id && r.IsActive)?.Trust ?? 0)
+            .ThenBy(n => world.Geography.GetRouteDistance(source.CurrentLocationId!.Value, n.CurrentLocationId!.Value))
+            .ThenBy(n => n.Id)
+            .FirstOrDefault();
+    }
+
+    private static ItemDefinition? FindHelpItem(WorldState world, Npc helper, string need)
+    {
+        foreach (var entry in helper.Inventory.Entries.Where(e => e.Quantity > 0))
+        {
+            if (!world.Inventory.Items.TryGetValue(entry.ItemId, out var item) || !item.Consumable || item.Category != ItemCategory.Food)
+                continue;
+            if (need == "eau" && string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase))
+                return item;
+            if (need == "nourriture" && !string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase))
+                return item;
+        }
+        return null;
     }
 
     private static Guid FindUsefulLocation(WorldState world, Npc source, Npc target)
