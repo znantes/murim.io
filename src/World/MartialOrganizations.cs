@@ -29,6 +29,18 @@ public sealed class MartialOrganizationSystem
         return organization;
     }
 
+    public void RegisterTerritorialAuthorities(WorldState world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        if (_organizations.Values.Any(o => o.Type == MartialOrganizationType.Alliance))
+            return;
+
+        var city = world.Geography.Locations.Values.FirstOrDefault(l => l.Type is LocationType.City or LocationType.Town);
+        var locationId = city?.Id;
+        Create("Alliance Orthodoxe", MartialOrganizationType.Alliance, "Ordre martial orthodoxe sous souveraineté impériale.", locationId).Reputation = 50;
+        Create("Alliance Non-Orthodoxe", MartialOrganizationType.Alliance, "Alliance martialement indépendante, non assimilée au bien ou au mal.", locationId).Reputation = 35;
+    }
+
     public bool Recruit(WorldState world, MartialOrganization organization, Npc npc, MartialRank rank = MartialRank.Disciple)
     {
         if (!npc.IsAlive || organization.MemberIds.Contains(npc.Id)) return false;
