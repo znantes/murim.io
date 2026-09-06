@@ -74,6 +74,7 @@ public sealed class NpcAutonomySystem
             if (_pendingTravels.ContainsKey(npc.Id)) continue;
             if (TrySatisfyCriticalNeed(world, npc)) continue;
             if (TryAcquireCriticalNeed(world, npc)) continue;
+            if (TryTravelToCriticalNeed(world, npc)) continue;
             if (TrySeekMedicalCare(world, npc)) continue;
             if (TryTravelToMedicalCare(world, npc)) continue;
             if (TrySeekHelpForCriticalNeed(world, npc)) continue;
@@ -103,6 +104,43 @@ public sealed class NpcAutonomySystem
         if (npc.Needs.Hunger >= 70 && TryBuyAndConsume(world, npc, "Pain de campagne", ItemCategory.Food, 35, "mange")) return true;
         if (npc.Needs.Hunger >= 70 && TryBuyFirstFoodAndConsume(world, npc, 25)) return true;
         return false;
+    }
+
+    private bool TryTravelToCriticalNeed(WorldState world, Npc npc)
+    {
+        if (npc.CurrentLocationId is not Guid currentLocationId) return false;
+        var need = npc.Needs.Thirst >= 70 ? "eau" : npc.Needs.Hunger >= 70 ? "nourriture" : null;
+        if (need is null) return false;
+
+        var destination = world.Commerce.Businesses.Values
+            .Where(b => b.Active && b.OwnerNpcId != npc.Id && b.LocationId is Guid locationId && locationId != currentLocationId && npc.KnownLocationIds.Contains(locationId) && b.Stock.Any(s => s.Quantity > 0 && world.Inventory.Items.TryGetValue(s.ItemId, out var item) && item.Consumable && item.Category == ItemCategory.Food && (need == "eau" ? string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase) : !string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase))))
+            .Select(b => new
+            {
+                Business = b,
+                LocationId = b.LocationId!.Value,
+                Distance = world.Geography.GetRouteDistance(currentLocationId, b.LocationId!.Value)
+            })
+            .Where(x => !double.IsInfinity(x.Distance))
+            .OrderBy(x => x.Distance)
+            .ThenBy(x => x.Business.Type == CommerceType.FoodStall ? 0 : 1)
+            .ThenBy(x => x.Business.Id)
+            .FirstOrDefault();
+        if (destination is null) return false;
+
+        var plan = world.Travel.Plan(world, npc, destination.LocationId, MovementMethod.Walk);
+        if (plan is null) return false;
+        _pendingTravels[npc.Id] = new PendingTravel
+        {
+            DestinationId = destination.LocationId,
+            BuildingId = Guid.Empty,
+            RemainingMinutes = plan.DurationMinutes,
+            DistanceKm = plan.DistanceKm,
+            Purpose = need
+        };
+        var locationName = world.Geography.Locations[destination.LocationId].Name;
+        npc.History.Add("Déplacement", npc.AgeYears, $"Part vers {locationName} pour chercher {need} ({plan.DistanceKm:0.#} km, environ {plan.DurationMinutes} min à pied).");
+        LastActions.Add($"{npc.Identity.DisplayName} part chercher {need} à {locationName}.");
+        return true;
     }
 
     private bool TrySeekMedicalCare(WorldState world, Npc npc)
