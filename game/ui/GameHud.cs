@@ -15,6 +15,7 @@ public partial class GameHud : Control
     private RichTextLabel _log = null!;
     private LineEdit _input = null!;
     private TabContainer _tabs = null!;
+    private double _realTimeAccumulator;
     private readonly Dictionary<string, RichTextLabel> _panels = new();
 
     public void Initialize(WorldState world)
@@ -25,6 +26,20 @@ public partial class GameHud : Control
         Refresh();
         AddLog("Le monde est vivant. Ton personnage vient de naître.");
         AddLog("Commande : « Observe », « Va au Bourg de la Rivière », « Dors »…");
+    }
+
+    public override void _Process(double delta)
+    {
+        if (_world?.PlayerNpc is null || delta <= 0) return;
+        _realTimeAccumulator += delta;
+        var advanced = false;
+        while (_realTimeAccumulator >= 1.0)
+        {
+            _realTimeAccumulator -= 1.0;
+            _world.AdvanceMinutes(1);
+            advanced = true;
+        }
+        if (advanced) Refresh();
     }
 
     private void BuildUi()
@@ -78,7 +93,7 @@ public partial class GameHud : Control
         _log.CustomMinimumSize = new Vector2(0, 105);
         root.AddChild(_log);
 
-        var hint = new Label { Text = "Que veux-tu faire ?", AutowrapMode = TextServer.AutowrapMode.WordSmart };
+        var hint = new Label { Text = "Que veux-tu faire ? Le monde continue d'avancer même sans commande.", AutowrapMode = TextServer.AutowrapMode.WordSmart };
         root.AddChild(hint);
 
         var commandRow = new HBoxContainer();
