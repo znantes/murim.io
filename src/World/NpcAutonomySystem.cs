@@ -21,7 +21,7 @@ public sealed class NpcAutonomySystem
     private void Tick(WorldState world)
     {
         LastActions.Clear();
-        foreach (var npc in world.Npcs.Values.Where(n => n.IsAlive).OrderBy(n => n.Id))
+        foreach (var npc in world.Npcs.Values.Where(n => n.IsAlive && n.Id != world.PlayerNpc?.Id).OrderBy(n => n.Id))
         {
             if (npc.AgeYears < 4) continue;
             var random = new Random(DeterministicRandomSeed.Create(world.WorldSeed + 71, world.Time.Day * 120 + world.Time.MinuteOfDay, npc.Id));
@@ -86,7 +86,7 @@ public sealed class NpcAutonomySystem
             npc.EnterBuilding(building.Id);
         }
         if (!world.Employment.WorkHour(world, npc, out var wage)) return false;
-        npc.Needs.Fatigue = Math.Min(100, npc.Needs.Fatigue + 4);
+        npc.Needs.Exert(4);
         npc.History.Add("Travail", npc.AgeYears, $"Travaille comme {contract.ProfessionType} et gagne {wage:0.##}.");
         LastActions.Add($"{npc.Identity.DisplayName} travaille.");
         return true;
@@ -95,7 +95,7 @@ public sealed class NpcAutonomySystem
     private bool TrySocialize(WorldState world, Npc npc, Random random)
     {
         if (npc.CurrentLocationId is not Guid locationId) return false;
-        var other = world.Npcs.Values.Where(n => n.IsAlive && n.Id != npc.Id && n.CurrentLocationId == locationId && n.AgeYears >= 4).OrderBy(n => n.Id).ToList();
+        var other = world.Npcs.Values.Where(n => n.IsAlive && n.Id != npc.Id && n.Id != world.PlayerNpc?.Id && n.CurrentLocationId == locationId && n.AgeYears >= 4).OrderBy(n => n.Id).ToList();
         if (other.Count == 0) return false;
         var target = other[random.Next(other.Count)];
         var relationship = npc.Relationships.FirstOrDefault(r => r.ToNpcId == target.Id && r.IsActive);
