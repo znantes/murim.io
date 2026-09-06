@@ -1,8 +1,53 @@
 namespace Murim.World;
 
+public sealed class FamilyOriginRoll
+{
+    public Family Family { get; init; } = null!;
+    public Npc Father { get; init; } = null!;
+    public Npc Mother { get; init; } = null!;
+    public Npc Child { get; init; } = null!;
+}
+
 public sealed class FamilyLifeSystem
 {
     public List<string> LastEvents { get; } = new();
+
+    public FamilyOriginRoll RollFamilyOrigin(int seed, string familyName)
+    {
+        var random = new Random(seed);
+        var origin = random.Next(100) switch
+        {
+            < 8 => FamilyOrigin.Noble,
+            < 13 => FamilyOrigin.Merchant,
+            < 18 => FamilyOrigin.Martial,
+            < 22 => FamilyOrigin.Religious,
+            < 25 => FamilyOrigin.Criminal,
+            < 28 => FamilyOrigin.Secretive,
+            < 42 => FamilyOrigin.Rural,
+            _ => FamilyOrigin.Common
+        };
+        var culture = "Culture du Berceau";
+        var region = "Région du Berceau";
+        var family = new Family
+        {
+            Name = familyName,
+            Origin = origin,
+            SocialStatus = SocialStatusFor(origin)
+        };
+        var parents = new ParentGenerator().CreateParents(familyName, culture, region, seed + 17);
+        parents.Father.Birth = new BirthContext { FatherId = null, MotherId = null, FamilyId = family.Id, Culture = culture, Region = region, SocialOrigin = familyName };
+        parents.Mother.Birth = new BirthContext { FatherId = null, MotherId = null, FamilyId = family.Id, Culture = culture, Region = region, SocialOrigin = familyName };
+        family.FatherId = parents.Father.Id;
+        family.MotherId = parents.Mother.Id;
+        var childContext = new BirthContext { FatherId = parents.Father.Id, MotherId = parents.Mother.Id, FamilyId = family.Id, Culture = culture, Region = region, SocialOrigin = familyName };
+        var child = new BirthGenerator().CreateNewborn(childContext, seed + 29, parents.Father, parents.Mother);
+        family.MemberIds.Add(parents.Father.Id);
+        family.MemberIds.Add(parents.Mother.Id);
+        family.MemberIds.Add(child.Id);
+        family.ChildrenIds.Add(child.Id);
+        child.History.Add("Naissance", 0, $"Naît à l'origine de la famille {familyName}, statut {family.SocialStatus}.");
+        return new FamilyOriginRoll { Family = family, Father = parents.Father, Mother = parents.Mother, Child = child };
+    }
 
     public void AdvanceDay(WorldState world)
     {
@@ -105,6 +150,11 @@ public sealed class FamilyLifeSystem
             foreach (var relation in npc.Relationships) relation.IsActive = false;
         }
     }
+
+    private static string SocialStatusFor(FamilyOrigin origin) => origin switch
+    {
+        FamilyOrigin.Imperial => "Impérial", FamilyOrigin.Noble => "Noble", FamilyOrigin.Martial => "Martial", FamilyOrigin.Merchant => "Marchand", FamilyOrigin.Religious => "Religieux", FamilyOrigin.Criminal => "Criminel", FamilyOrigin.Secretive => "Secret", FamilyOrigin.Rural => "Rural", _ => "Commun"
+    };
 
     private static string ProfessionName(ProfessionType type) => type switch { ProfessionType.Farmer => "agriculteur", ProfessionType.Hunter => "chasseur", ProfessionType.Craftsman => "artisan", ProfessionType.Merchant => "marchand", ProfessionType.Guard => "garde", ProfessionType.Soldier => "soldat", ProfessionType.Healer => "soigneur", ProfessionType.Scholar => "érudit", ProfessionType.Servant => "serviteur", ProfessionType.Fisher => "pêcheur", ProfessionType.Courier => "messager", ProfessionType.MartialPractitioner => "pratiquant martial", ProfessionType.Official => "fonctionnaire", ProfessionType.Teacher => "enseignant", ProfessionType.Criminal => "criminel", _ => "sans profession" };
 }
