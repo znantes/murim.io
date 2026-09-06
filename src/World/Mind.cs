@@ -9,4 +9,5 @@ public sealed class Mind
     public double Perception { get; set; }
     public double LearningAbility { get; set; }
     public double MentalResilience { get; set; }
+    public double Curiosity { get; set; }
 }
