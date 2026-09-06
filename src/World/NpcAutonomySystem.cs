@@ -22,7 +22,6 @@ public sealed class NpcAutonomySystem
         ArgumentNullException.ThrowIfNull(world);
         if (minutes < 0) throw new ArgumentOutOfRangeException(nameof(minutes));
 
-        LastActions.Clear();
         AdvancePendingTravels(world, minutes);
         _minutesUntilNextTick -= minutes;
         while (_minutesUntilNextTick <= 0)
@@ -43,7 +42,6 @@ public sealed class NpcAutonomySystem
                 _pendingTravels.Remove(npcId);
                 continue;
             }
-
             travel.RemainingMinutes -= minutes;
             if (travel.RemainingMinutes > 0) continue;
             if (!world.Geography.Locations.TryGetValue(travel.DestinationId, out var destination))
@@ -51,7 +49,6 @@ public sealed class NpcAutonomySystem
                 _pendingTravels.Remove(npcId);
                 continue;
             }
-
             npc.SetLocation(destination.Id);
             npc.History.Add("Déplacement", npc.AgeYears, $"Arrive à {destination.Name} après un trajet de {travel.DistanceKm:0.#} km.");
             LastActions.Add($"{npc.Identity.DisplayName} arrive à {destination.Name}.");
@@ -67,8 +64,8 @@ public sealed class NpcAutonomySystem
             if (_pendingTravels.ContainsKey(npc.Id)) continue;
             if (TrySatisfyCriticalNeed(world, npc)) continue;
             if (TryAcquireCriticalNeed(world, npc)) continue;
-            if (TrySeekNeedAssistance(world, npc)) continue;
-            if (TryLearnUsefulLocation(world, npc)) continue;
+            if (TrySeekMedicalCare(world, npc)) continue;
+            if (TrySeekHelpForCriticalNeed(world, npc)) continue;
             if (TryTravelToWork(world, npc)) continue;
             TryWork(world, npc);
         }
@@ -97,6 +94,64 @@ public sealed class NpcAutonomySystem
         return false;
     }
 
+    private bool TrySeekMedicalCare(WorldState world, Npc npc)
+    {
+        var condition = npc.Conditions.Where(c => c.Treatable && c.Severity >= 0.55).OrderByDescending(c => c.Severity).ThenByDescending(c => c.Pain).FirstOrDefault();
+        if (condition is null) return false;
+
+        var healer = world.Npcs.Values
+            .Where(candidate => candidate.IsAlive && candidate.Id != npc.Id && candidate.CurrentLocationId == npc.CurrentLocationId && candidate.Profession.Type == ProfessionType.Healer)
+            .OrderByDescending(candidate => candidate.Profession.Skill)
+            .ThenByDescending(candidate => candidate.Relationships.TryGetValue(npc.Id, out var relation) ? relation.Trust : 0)
+            .ThenBy(candidate => candidate.Id)
+            .FirstOrDefault();
+        if (healer is null || healer.Profession.Skill < 20) return false;
+
+        var diagnosis = world.Medicine.Diagnose(healer, npc, world.Time.Day);
+        if (!diagnosis.IdentifiedConditionIds.Contains(condition.Id)) return false;
+        if (!world.Medicine.Treat(healer, npc, condition.Id, world.Time.Day)) return false;
+
+        npc.History.Add("Soin", npc.AgeYears, $"Cherche des soins auprès de {healer.Identity.DisplayName} pour {condition.Name}.");
+        healer.History.Add("Soin", healer.AgeYears, $"Soigne {npc.Identity.DisplayName} pour {condition.Name}.");
+        LastActions.Add($"{npc.Identity.DisplayName} reçoit des soins de {healer.Identity.DisplayName}.");
+        return true;
+    }
+
+    private bool TrySeekHelpForCriticalNeed(WorldState world, Npc npc)
+    {
+        var need = npc.Needs.Thirst >= 85 ? "eau" : npc.Needs.Hunger >= 85 ? "nourriture" : null;
+        if (need is null) return false;
+        var helper = world.Npcs.Values
+            .Where(candidate => candidate.IsAlive && candidate.Id != npc.Id && candidate.CurrentLocationId == npc.CurrentLocationId)
+            .Select(candidate => new { Npc = candidate, Trust = npc.Relationships.TryGetValue(candidate.Id, out var relation) ? relation.Trust : 0 })
+            .Where(x => x.Trust >= 0.25)
+            .OrderByDescending(x => x.Trust)
+            .ThenBy(x => x.Npc.Id)
+            .Select(x => x.Npc)
+            .FirstOrDefault(candidate => FindHelpItem(world, candidate, need) is not null);
+        if (helper is null) return false;
+
+        var item = FindHelpItem(world, helper, need);
+        if (item is null || !helper.Inventory.Remove(item.Id)) return false;
+        npc.Inventory.Add(item, 1);
+        if (need == "eau") npc.Needs.Drink(25); else npc.Needs.Eat(35);
+        npc.History.Add("Entraide", npc.AgeYears, $"Reçoit de {helper.Identity.DisplayName} de {item.Name} pour répondre à un besoin urgent.");
+        helper.History.Add("Entraide", helper.AgeYears, $"Aide {npc.Identity.DisplayName} en lui donnant {item.Name}.");
+        LastActions.Add($"{helper.Identity.DisplayName} aide {npc.Identity.DisplayName}.");
+        return true;
+    }
+
+    private static ItemDefinition? FindHelpItem(WorldState world, Npc helper, string need)
+    {
+        foreach (var entry in helper.Inventory.Entries.Where(e => e.Quantity > 0))
+        {
+            if (!world.Inventory.Items.TryGetValue(entry.ItemId, out var item) || !item.Consumable || item.Category != ItemCategory.Food) continue;
+            if (need == "eau" && string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase)) return item;
+            if (need == "nourriture" && !string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase)) return item;
+        }
+        return null;
+    }
+
     private bool TryBuyAndConsume(WorldState world, Npc npc, string itemName, ItemCategory category, double relief, string verb)
     {
         var item = world.Inventory.FindByName(itemName);
@@ -105,9 +160,7 @@ public sealed class NpcAutonomySystem
         if (business is null) return false;
         if (!world.Commerce.Buy(world, npc, business, item.Id, 1, out var total)) return false;
         if (!npc.Inventory.Remove(item.Id)) return false;
-
-        if (verb == "boit") npc.Needs.Drink(relief);
-        else npc.Needs.Eat(relief);
+        if (verb == "boit") npc.Needs.Drink(relief); else npc.Needs.Eat(relief);
         npc.History.Add("Commerce", npc.AgeYears, $"Achète {item.Name} pour {total:0.##} puis {verb} {item.Name}.");
         LastActions.Add($"{npc.Identity.DisplayName} achète {item.Name} et le consomme.");
         return true;
@@ -121,14 +174,13 @@ public sealed class NpcAutonomySystem
             .ThenBy(b => b.Id)
             .FirstOrDefault(b => b.Stock.Any(s => s.Quantity > 0 && world.Inventory.Items.TryGetValue(s.ItemId, out var item) && item.Category == ItemCategory.Food && item.Consumable));
         if (business is null) return false;
-
         foreach (var stock in business.Stock.Where(s => s.Quantity > 0).ToList())
         {
             if (!world.Inventory.Items.TryGetValue(stock.ItemId, out var item) || item.Category != ItemCategory.Food || !item.Consumable) continue;
             if (!world.Commerce.Buy(world, npc, business, item.Id, 1, out var total)) continue;
             if (!npc.Inventory.Remove(item.Id)) continue;
             npc.Needs.Eat(relief);
-            npc.History.Add("Commerce", npc.AgeYears, $"Achète {item.Name} pour {total:0.##} puis le mange.");
+            npc.History.Add("Commerce", npc.AgeYears, $"Achète {item.Name} pour {total:0.##} puis le consomme.");
             LastActions.Add($"{npc.Identity.DisplayName} achète {item.Name} et le consomme.");
             return true;
         }
@@ -143,44 +195,6 @@ public sealed class NpcAutonomySystem
             .ThenBy(b => b.Id)
             .FirstOrDefault();
 
-    private bool TrySeekNeedAssistance(WorldState world, Npc npc)
-    {
-        var urgentThirst = npc.Needs.Thirst >= 85;
-        var urgentHunger = npc.Needs.Hunger >= 85;
-        if (!urgentThirst && !urgentHunger) return false;
-        if (npc.CurrentLocationId is not Guid locationId) return false;
-
-        var preferred = urgentThirst
-            ? world.Inventory.FindByName("Eau")
-            : world.Inventory.FindByName("Pain de campagne");
-        if (preferred is null || !preferred.Consumable || preferred.Category != ItemCategory.Food) return false;
-
-        var helper = world.Npcs.Values
-            .Where(other => other.IsAlive && other.Id != npc.Id && other.CurrentLocationId == locationId)
-            .Where(other => other.Inventory.Entries.Any(e => e.ItemId == preferred.Id && e.Quantity > 0))
-            .Select(other => new
-            {
-                Npc = other,
-                Trust = other.Relationships.FirstOrDefault(r => r.ToNpcId == npc.Id)?.Trust ?? 0
-            })
-            .Where(x => x.Trust >= 0.25)
-            .OrderByDescending(x => x.Trust)
-            .ThenBy(x => x.Npc.Id)
-            .FirstOrDefault();
-        if (helper is null) return false;
-
-        if (!helper.Npc.Inventory.Remove(preferred.Id)) return false;
-        npc.Inventory.Add(preferred);
-        var relief = urgentThirst ? 25 : 35;
-        if (urgentThirst) npc.Needs.Drink(relief);
-        else npc.Needs.Eat(relief);
-
-        npc.History.Add("Entraide", npc.AgeYears, $"Reçoit {preferred.Name} de {helper.Npc.Identity.DisplayName} pour soulager un besoin urgent.");
-        helper.Npc.History.Add("Entraide", helper.Npc.AgeYears, $"Aide {npc.Identity.DisplayName} en lui donnant {preferred.Name}.");
-        LastActions.Add($"{helper.Npc.Identity.DisplayName} aide {npc.Identity.DisplayName}.");
-        return true;
-    }
-
     private bool TryConsume(WorldState world, Npc npc, ItemCategory category, string preferredName, double relief, string verb)
     {
         var item = world.Inventory.FindByName(preferredName);
@@ -188,8 +202,7 @@ public sealed class NpcAutonomySystem
         var entry = npc.Inventory.Entries.FirstOrDefault(e => e.ItemId == item.Id);
         if (entry is null || entry.Quantity <= 0) return false;
         if (!npc.Inventory.Remove(item.Id)) return false;
-        if (preferredName == "Eau") npc.Needs.Drink(relief);
-        else npc.Needs.Eat(relief);
+        if (preferredName == "Eau") npc.Needs.Drink(relief); else npc.Needs.Eat(relief);
         npc.History.Add("Survie", npc.AgeYears, $"{verb} {item.Name}.");
         LastActions.Add($"{npc.Identity.DisplayName} {verb} {item.Name}.");
         return true;
@@ -209,39 +222,6 @@ public sealed class NpcAutonomySystem
         return false;
     }
 
-    private bool TryLearnUsefulLocation(WorldState world, Npc npc)
-    {
-        if (npc.CurrentLocationId is not Guid currentLocationId) return false;
-        if (!world.Employment.Contracts.TryGetValue(npc.Id, out var contract) || contract.BuildingId is not Guid buildingId) return false;
-        if (!world.Buildings.Buildings.TryGetValue(buildingId, out var building)) return false;
-        if (npc.KnownLocationIds.Contains(building.LocationId)) return false;
-
-        var teacher = world.Npcs.Values
-            .Where(other => other.IsAlive && other.Id != npc.Id && other.CurrentLocationId == currentLocationId && other.KnownLocationIds.Contains(building.LocationId))
-            .OrderByDescending(other => other.Relationships.FirstOrDefault(r => r.ToNpcId == npc.Id)?.Trust ?? 0.2)
-            .ThenBy(other => other.Id)
-            .FirstOrDefault();
-        if (teacher is null) return false;
-
-        var trust = teacher.Relationships.FirstOrDefault(r => r.ToNpcId == npc.Id)?.Trust ?? 0.2;
-        if (trust < 0.1) return false;
-
-        npc.DiscoverLocation(building.LocationId);
-        npc.Learn(new KnowledgeEntry
-        {
-            EntityId = building.LocationId,
-            Kind = KnowledgeKind.Location,
-            Confidence = Math.Clamp(0.55 + trust * 0.4, 0.25, 0.95),
-            LearnedDay = world.Time.Day,
-            SourceNpcId = teacher.Id,
-            Summary = $"Indique où se trouve {building.Name}."
-        });
-        npc.History.Add("Connaissance", npc.AgeYears, $"Apprend de {teacher.Identity.DisplayName} où se trouve {building.Name}.");
-        teacher.History.Add("Connaissance", teacher.AgeYears, $"Indique à {npc.Identity.DisplayName} où se trouve {building.Name}.");
-        LastActions.Add($"{npc.Identity.DisplayName} apprend où aller travailler.");
-        return true;
-    }
-
     private bool TryTravelToWork(WorldState world, Npc npc)
     {
         if (world.Time.Period is TimePeriod.Night || npc.Needs.Fatigue >= 65 || !world.Employment.IsEmployed(npc)) return false;
@@ -249,17 +229,9 @@ public sealed class NpcAutonomySystem
         if (contract.BuildingId is not Guid buildingId || !world.Buildings.Buildings.TryGetValue(buildingId, out var building)) return false;
         if (npc.CurrentLocationId == building.LocationId) return false;
         if (!npc.KnownLocationIds.Contains(building.LocationId)) return false;
-
         var plan = world.Travel.Plan(world, npc, building.LocationId, MovementMethod.Walk);
         if (plan is null) return false;
-
-        _pendingTravels[npc.Id] = new PendingTravel
-        {
-            DestinationId = building.LocationId,
-            BuildingId = building.Id,
-            RemainingMinutes = plan.DurationMinutes,
-            DistanceKm = plan.DistanceKm
-        };
+        _pendingTravels[npc.Id] = new PendingTravel { DestinationId = building.LocationId, BuildingId = building.Id, RemainingMinutes = plan.DurationMinutes, DistanceKm = plan.DistanceKm };
         npc.History.Add("Déplacement", npc.AgeYears, $"Part vers {world.Geography.Locations[building.LocationId].Name} pour rejoindre son travail ({plan.DistanceKm:0.#} km, environ {plan.DurationMinutes} min à pied).");
         LastActions.Add($"{npc.Identity.DisplayName} part travailler.");
         return true;
@@ -267,8 +239,6 @@ public sealed class NpcAutonomySystem
 
     private bool TryWork(WorldState world, Npc npc)
     {
-        // Employment.WorkHour pays exactly one hour. Only execute it on the hour so
-        // the 30-minute autonomy tick cannot accidentally double an NPC's wage.
         if (world.Time.Period is TimePeriod.Night || world.Time.MinuteOfDay % 60 != 0 || npc.Needs.Fatigue >= 65 || !world.Employment.IsEmployed(npc)) return false;
         if (!world.Employment.Contracts.TryGetValue(npc.Id, out var contract)) return false;
         if (contract.BuildingId is not Guid buildingId || !world.Buildings.Buildings.TryGetValue(buildingId, out var building)) return false;
