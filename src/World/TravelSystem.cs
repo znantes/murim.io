@@ -45,12 +45,22 @@ public sealed class TravelSystem
 
     public bool Execute(WorldState world, TravelPlan plan)
     {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(plan);
         if (!world.Npcs.TryGetValue(plan.NpcId, out var npc) || !npc.IsAlive) return false;
         if (npc.CurrentLocationId != plan.FromLocationId || !npc.KnownLocationIds.Contains(plan.ToLocationId)) return false;
+
         var effectiveMinutes = EnvironmentEffects.TravelMinutes(world, plan);
+        var incidentText = string.Empty;
+        if (world.Transport.ResolveIncident(world, npc, plan.ToLocationId, plan.Method, effectiveMinutes, out var extraMinutes, out var resolvedIncident))
+        {
+            effectiveMinutes += extraMinutes;
+            incidentText = $" Incident : {resolvedIncident}";
+        }
+
         world.AdvanceMinutes(effectiveMinutes);
         npc.SetLocation(plan.ToLocationId);
-        npc.History.Add("Déplacement", npc.AgeYears, $"Voyage vers {world.Geography.Locations[plan.ToLocationId].Name} ({plan.DistanceKm:0.#} km, {plan.Method}, météo: {world.Environment.Get(plan.ToLocationId).Weather}).");
+        npc.History.Add("Déplacement", npc.AgeYears, $"Voyage vers {world.Geography.Locations[plan.ToLocationId].Name} ({plan.DistanceKm:0.#} km, {plan.Method}, météo: {world.Environment.Get(plan.ToLocationId).Weather}).{incidentText}");
         return true;
     }
 }
