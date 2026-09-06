@@ -84,6 +84,21 @@ public sealed class InformationSystem
             ApplyReputation(world, to, subjectId, item, trust);
         }
 
+        if (original.LocationId is Guid locationId && world.Geography.Locations.TryGetValue(locationId, out var location))
+        {
+            var confidence = ReliabilityConfidence(reliability) * Math.Clamp(0.65 + trust * 0.5, 0.25, 1.0);
+            to.DiscoverLocation(locationId);
+            to.Learn(new KnowledgeEntry
+            {
+                EntityId = locationId,
+                Kind = KnowledgeKind.Location,
+                Confidence = confidence,
+                LearnedDay = world.Time.Day,
+                SourceNpcId = from.Id,
+                Summary = location.Name
+            });
+        }
+
         return item;
     }
 
