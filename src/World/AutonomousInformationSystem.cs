@@ -34,12 +34,31 @@ public sealed class AutonomousInformationSystem
                 .OrderByDescending(i => i.CreatedDay)
                 .FirstOrDefault();
 
-            if (known is null)
+            if (known is not null)
+            {
+                world.Information.Spread(world, source, target, known);
+                source.History.Add("Rumeur", source.AgeYears, $"Transmet une information à {target.Identity.DisplayName}.");
+                target.History.Add("Rumeur", target.AgeYears, $"Entend une information transmise par {source.Identity.DisplayName}.");
+                continue;
+            }
+
+            var locationId = source.KnownLocationIds
+                .Where(id => id != source.CurrentLocationId && !target.KnownLocationIds.Contains(id) && world.Geography.Locations.ContainsKey(id))
+                .OrderBy(id => id)
+                .FirstOrDefault();
+            if (locationId == Guid.Empty || !world.Geography.Locations.TryGetValue(locationId, out var location))
                 continue;
 
-            world.Information.Spread(world, source, target, known);
-            source.History.Add("Rumeur", source.AgeYears, $"Transmet une information à {target.Identity.DisplayName}.");
-            target.History.Add("Rumeur", target.AgeYears, $"Entend une information transmise par {source.Identity.DisplayName}.");
+            var locationInfo = world.Information.Publish(
+                world,
+                source,
+                "Lieu",
+                $"{source.Identity.DisplayName} connaît {location.Name} et peut indiquer comment y aller.",
+                locationId: locationId,
+                reliability: InformationReliability.Verified);
+            world.Information.Spread(world, source, target, locationInfo);
+            source.History.Add("Information", source.AgeYears, $"Indique à {target.Identity.DisplayName} comment rejoindre {location.Name}.");
+            target.History.Add("Information", target.AgeYears, $"Apprend l'existence de {location.Name} grâce à {source.Identity.DisplayName}.");
         }
     }
 }
