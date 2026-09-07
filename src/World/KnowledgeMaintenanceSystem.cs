@@ -13,6 +13,14 @@ public sealed class KnowledgeMaintenanceSystem
         {
             foreach (var entry in npc.Knowledge)
             {
+                if (IsDirectlyObservable(world, npc, entry))
+                {
+                    entry.Confidence = 1.0;
+                    entry.LastConfirmedDay = world.Time.Day;
+                    entry.ConfirmationCount = Math.Min(100, entry.ConfirmationCount + 1);
+                    continue;
+                }
+
                 var age = Math.Max(0, world.Time.Day - entry.LastConfirmedDay);
                 if (age == 0)
                     continue;
@@ -31,5 +39,19 @@ public sealed class KnowledgeMaintenanceSystem
                 entry.Confidence = Math.Clamp(entry.Confidence * decay, 0, 1);
             }
         }
+    }
+
+    private static bool IsDirectlyObservable(WorldState world, Npc npc, KnowledgeEntry entry)
+    {
+        if (npc.CurrentLocationId is not Guid currentLocationId)
+            return false;
+
+        if (entry.Kind == KnowledgeKind.Location)
+            return entry.EntityId == currentLocationId;
+
+        if (entry.Kind == KnowledgeKind.Person && world.Npcs.TryGetValue(entry.EntityId, out var person))
+            return person.IsAlive && person.CurrentLocationId == currentLocationId;
+
+        return false;
     }
 }
