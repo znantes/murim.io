@@ -53,7 +53,7 @@ public sealed class InformationSystem
         if (original.HeardByNpcIds.Contains(to.Id)) return null;
 
         var trust = from.Relationships.FirstOrDefault(r => r.ToNpcId == to.Id)?.Trust ?? 0.2;
-        var reliability = original.Reliability;
+        var reliability = DecayReliability(original.Reliability, Math.Max(0, world.Time.Day - original.CreatedDay));
         if (trust < 0.25 && reliability == InformationReliability.Verified) reliability = InformationReliability.Plausible;
         if (trust < 0.1) reliability = InformationReliability.Rumor;
         if (reliability > InformationReliability.Rumor && from.Personality.Sociability < 0.2)
@@ -79,6 +79,8 @@ public sealed class InformationSystem
                 Kind = KnowledgeKind.Person,
                 Confidence = confidence,
                 LearnedDay = world.Time.Day,
+                LastConfirmedDay = world.Time.Day,
+                ConfirmationCount = 1,
                 SourceNpcId = from.Id,
                 Summary = original.Content
             });
@@ -96,12 +98,26 @@ public sealed class InformationSystem
                 Kind = KnowledgeKind.Location,
                 Confidence = confidence,
                 LearnedDay = world.Time.Day,
+                LastConfirmedDay = world.Time.Day,
+                ConfirmationCount = 1,
                 SourceNpcId = from.Id,
                 Summary = location.Name
             });
         }
 
         return item;
+    }
+
+    private static InformationReliability DecayReliability(InformationReliability reliability, long ageDays)
+    {
+        var steps = ageDays switch
+        {
+            >= 60 => 3,
+            >= 30 => 2,
+            >= 14 => 1,
+            _ => 0
+        };
+        return (InformationReliability)Math.Max((int)InformationReliability.Rumor, (int)reliability - steps);
     }
 
     private static double ReliabilityConfidence(InformationReliability reliability) => reliability switch
