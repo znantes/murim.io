@@ -11,7 +11,7 @@ public sealed class KnowledgeMaintenanceSystem
 
         foreach (var npc in world.Npcs.Values.Where(n => n.IsAlive).OrderBy(n => n.Id))
         {
-            foreach (var entry in npc.Knowledge)
+            foreach (var entry in npc.Knowledge.ToList())
             {
                 if (IsDirectlyObservable(world, npc, entry))
                 {
@@ -25,7 +25,10 @@ public sealed class KnowledgeMaintenanceSystem
                 if (age == 0)
                     continue;
 
-                var halfLife = entry.Kind switch
+                var subjectIsDead = entry.Kind == KnowledgeKind.Person
+                    && world.Npcs.TryGetValue(entry.EntityId, out var person)
+                    && !person.IsAlive;
+                var halfLife = subjectIsDead ? 2.0 : entry.Kind switch
                 {
                     KnowledgeKind.Event => 7.0,
                     KnowledgeKind.Person => 45.0,
@@ -37,6 +40,9 @@ public sealed class KnowledgeMaintenanceSystem
 
                 var decay = Math.Pow(0.5, age / halfLife);
                 entry.Confidence = Math.Clamp(entry.Confidence * decay, 0, 1);
+
+                if (subjectIsDead && entry.Confidence < 0.05)
+                    npc.Knowledge.Remove(entry);
             }
         }
     }
