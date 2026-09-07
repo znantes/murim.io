@@ -39,9 +39,23 @@ public sealed class Npc
     public void DiscoverLocation(Guid locationId) => KnownLocationIds.Add(locationId);
     public void Learn(KnowledgeEntry entry)
     {
+        ArgumentNullException.ThrowIfNull(entry);
+        entry.Confidence = Math.Clamp(entry.Confidence, 0, 1);
+        if (entry.LastConfirmedDay < entry.LearnedDay)
+            entry.LastConfirmedDay = entry.LearnedDay;
+        if (entry.ConfirmationCount < 1)
+            entry.ConfirmationCount = 1;
+
         var existing = Knowledge.FirstOrDefault(k => k.EntityId == entry.EntityId && k.Kind == entry.Kind);
-        if (existing is null) Knowledge.Add(entry);
-        else existing.Confidence = Math.Max(existing.Confidence, entry.Confidence);
+        if (existing is null)
+        {
+            Knowledge.Add(entry);
+            return;
+        }
+
+        existing.Confidence = Math.Clamp(Math.Max(existing.Confidence, entry.Confidence) + 0.08 * Math.Min(4, existing.ConfirmationCount), 0, 1);
+        existing.LastConfirmedDay = Math.Max(existing.LastConfirmedDay, entry.LastConfirmedDay);
+        existing.ConfirmationCount = Math.Min(100, existing.ConfirmationCount + 1);
     }
     public void Die() { IsAlive = false; CurrentBuildingId = null; }
 }
