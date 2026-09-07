@@ -112,7 +112,7 @@ public sealed class NpcAutonomySystem
         if (need is null) return false;
 
         var destination = world.Commerce.Businesses.Values
-            .Where(b => b.Active && b.OwnerNpcId != npc.Id && b.LocationId != currentLocationId && npc.KnownLocationIds.Contains(b.LocationId) && b.Stock.Any(s => s.Quantity > 0 && world.Inventory.Items.TryGetValue(s.ItemId, out var item) && item.Consumable && item.Category == ItemCategory.Food && (need == "eau" ? string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase) : !string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase))))
+            .Where(b => b.Active && b.OwnerNpcId != npc.Id && b.LocationId != currentLocationId && npc.KnowsLocation(b.LocationId) && b.Stock.Any(s => s.Quantity > 0 && world.Inventory.Items.TryGetValue(s.ItemId, out var item) && item.Consumable && item.Category == ItemCategory.Food && (need == "eau" ? string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase) : !string.Equals(item.Name, "Eau", StringComparison.OrdinalIgnoreCase))))
             .Select(b => new
             {
                 Business = b,
@@ -170,7 +170,7 @@ public sealed class NpcAutonomySystem
         var condition = npc.Conditions.FirstOrDefault(c => c.Treatable && c.Severity >= 0.55);
         if (condition is null || npc.CurrentLocationId is not Guid currentLocationId) return false;
         var destination = world.Npcs.Values
-            .Where(candidate => candidate.IsAlive && candidate.Id != npc.Id && candidate.Profession.Type == ProfessionType.Healer && candidate.Profession.Skill >= 20 && candidate.CurrentLocationId is Guid locationId && locationId != currentLocationId && npc.KnownLocationIds.Contains(locationId))
+            .Where(candidate => candidate.IsAlive && candidate.Id != npc.Id && candidate.Profession.Type == ProfessionType.Healer && candidate.Profession.Skill >= 20 && candidate.CurrentLocationId is Guid locationId && locationId != currentLocationId && npc.KnowsLocation(locationId))
             .GroupBy(candidate => candidate.CurrentLocationId!.Value)
             .Select(group => new { LocationId = group.Key, BestSkill = group.Max(candidate => candidate.Profession.Skill), Distance = world.Geography.GetRouteDistance(currentLocationId, group.Key) })
             .Where(x => !double.IsInfinity(x.Distance))
@@ -221,7 +221,7 @@ public sealed class NpcAutonomySystem
         if (need is null) return false;
 
         var destination = world.Npcs.Values
-            .Where(candidate => candidate.IsAlive && candidate.Id != npc.Id && candidate.CurrentLocationId is Guid locationId && locationId != currentLocationId && npc.KnownLocationIds.Contains(locationId))
+            .Where(candidate => candidate.IsAlive && candidate.Id != npc.Id && candidate.CurrentLocationId is Guid locationId && locationId != currentLocationId && npc.KnowsLocation(locationId))
             .Select(candidate => new
             {
                 Npc = candidate,
@@ -339,7 +339,7 @@ public sealed class NpcAutonomySystem
         if (!world.Employment.Contracts.TryGetValue(npc.Id, out var contract)) return false;
         if (contract.BuildingId is not Guid buildingId || !world.Buildings.Buildings.TryGetValue(buildingId, out var building)) return false;
         if (npc.CurrentLocationId == building.LocationId) return false;
-        if (!npc.KnownLocationIds.Contains(building.LocationId)) return false;
+        if (!npc.KnowsLocation(building.LocationId)) return false;
         var plan = world.Travel.Plan(world, npc, building.LocationId, MovementMethod.Walk);
         if (plan is null) return false;
         _pendingTravels[npc.Id] = new PendingTravel { DestinationId = building.LocationId, BuildingId = building.Id, RemainingMinutes = plan.DurationMinutes, DistanceKm = plan.DistanceKm };
