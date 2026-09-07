@@ -37,6 +37,14 @@ public sealed class Npc
     public void EnterBuilding(Guid buildingId) => CurrentBuildingId = buildingId;
     public void ExitBuilding() => CurrentBuildingId = null;
     public void DiscoverLocation(Guid locationId) => KnownLocationIds.Add(locationId);
+    public bool KnowsLocation(Guid locationId, double minimumConfidence = 0.35)
+    {
+        if (!KnownLocationIds.Contains(locationId))
+            return false;
+
+        var entry = Knowledge.FirstOrDefault(k => k.EntityId == locationId && k.Kind == KnowledgeKind.Location);
+        return entry is null || entry.Confidence >= minimumConfidence;
+    }
     public void Learn(KnowledgeEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
