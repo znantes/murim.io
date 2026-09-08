@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Murim.io — Monde vivant</title>
+<style>
+:root{font-family:Inter,system-ui,sans-serif;color:#efe8d8;background:#10100f}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 20% 0,#2a251b,#10100f 55%)}button,input{font:inherit}button{cursor:pointer;border:1px solid #66563c;background:#272218;color:#f4ead7;border-radius:9px;padding:10px 12px}button:hover{background:#3a3020}button:disabled{opacity:.45;cursor:not-allowed}.shell{max-width:1400px;margin:auto;padding:18px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}.brand{font-size:25px;font-weight:800;letter-spacing:.04em}.sub{color:#a89d8a;font-size:13px}.grid{display:grid;grid-template-columns:270px 1fr 320px;gap:14px}.card{background:rgba(28,27,24,.92);border:1px solid #3c352a;border-radius:14px;padding:16px;box-shadow:0 12px 30px #0005}.hero{min-height:170px;background:linear-gradient(135deg,#292216,#171614)}h2,h3{margin:0 0 10px}.muted{color:#aaa08e}.bar{height:8px;background:#090909;border-radius:99px;overflow:hidden;margin:5px 0 11px}.fill{height:100%;background:#b89255}.stat{font-size:13px}.statrow{display:flex;justify-content:space-between}.people,.places,.actions{display:flex;flex-direction:column;gap:8px}.person,.place{padding:10px;border-radius:9px;background:#211f1a;border:1px solid #373126}.person strong,.place strong{display:block}.action{width:100%;text-align:left}.log{height:260px;overflow:auto;background:#0b0b0a;border-radius:10px;padding:12px;white-space:pre-wrap;font-size:13px;line-height:1.5;border:1px solid #302d27}.command{display:flex;gap:8px;margin-top:10px}.command input{flex:1;background:#111;color:#eee;border:1px solid #514735;border-radius:9px;padding:11px}.danger{color:#d9a878}.ok{color:#b8d39d}.pill{display:inline-block;padding:4px 8px;border-radius:99px;background:#332b20;color:#cbb68e;font-size:12px}.empty{color:#847d70;padding:8px}.wide{grid-column:1/-1}@media(max-width:1050px){.grid{grid-template-columns:1fr 1fr}.wide{grid-column:auto}}@media(max-width:700px){.grid{grid-template-columns:1fr}.top{align-items:flex-start}.hero{min-height:0}}
+</style></head>
+<body><div class="shell">
+<div class="top"><div><div class="brand">☯ MURIM.IO</div><div class="sub">Une vie entière dans un monde vivant.</div></div><div><button onclick="newGame()">Nouvelle vie</button></div></div>
+<div class="grid">
+<aside class="card"><h3>Ton personnage</h3><div id="player"></div><hr style="border-color:#332e26"><h3>État du monde</h3><div id="clock" class="muted"></div></aside>
+<main>
+<section class="card hero"><div class="pill" id="locType">—</div><h2 id="location">Chargement…</h2><div id="locationMeta" class="muted"></div><p id="intro" class="muted">Le monde se déroule autour de toi. Chaque action fait avancer le temps.</p></section>
+<section class="card" style="margin-top:14px"><h3>Journal</h3><div id="log" class="log"></div><div class="command"><input id="command" placeholder="Écris une commande : examine, dors, parle à…"><button onclick="sendCommand()">Agir</button></div></section>
+<section class="card" style="margin-top:14px"><h3>Personnes présentes</h3><div id="people" class="people"></div></section>
+</main>
+<aside>
+<section class="card"><h3>Actions</h3><div id="actions" class="actions"></div></section>
+<section class="card" style="margin-top:14px"><h3>Lieux connus</h3><div id="places" class="places"></div></section>
+</aside>
+</div></div>
+<script>
+let state=null;const $=id=>document.getElementById(id);const logs=[];
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function pct(v){return Math.max(0,Math.min(100,v)).toFixed(0)}
+function stat(name,v){return `<div class="stat"><div class="statrow"><span>${name}</span><b>${pct(v)}</b></div><div class="bar"><div class="fill" style="width:${pct(v)}%"></div></div></div>`}
+function render(s){state=s;$('clock').textContent=`Jour ${s.day} · ${s.period}`;const p=s.player;$('player').innerHTML=`<h2>${esc(p.name)}</h2><div class="muted">${p.age} ans · ${esc(p.profession)}</div><br>${stat('Santé',p.health)}${stat('Faim',p.hunger)}${stat('Soif',p.thirst)}${stat('Sommeil',p.sleep)}${stat('Fatigue',p.fatigue)}<div class="statrow"><span>Richesse</span><b>${p.wealth.toFixed(1)}</b></div><div class="statrow"><span>Douleur</span><b>${p.pain.toFixed(1)}</b></div>`;
+const l=s.location;if(l){$('location').textContent=l.name;$('locType').textContent=l.type;$('locationMeta').textContent=`${l.region} · population ${l.population} · danger ${l.danger}/100`}else{$('location').textContent='Lieu inconnu'}
+$('people').innerHTML=s.people.length?s.people.map(n=>`<div class="person"><strong>${esc(n.name)}</strong><span class="muted">${n.age} ans · ${esc(n.profession)} · compétence ${n.skill.toFixed(0)}</span><br><span class="muted">Richesse ${n.wealth.toFixed(1)}</span></div>`).join(''):'<div class="empty">Personne à portée.</div>';
+$('actions').innerHTML=s.actions.length?s.actions.map((a,i)=>`<button class="action" onclick="act(${i})">${esc(a.label)}</button>`).join(''):'<div class="empty">Aucune action disponible.</div>';
+$('places').innerHTML=s.knownLocations.map(l=>`<div class="place"><strong>${esc(l.name)}</strong><span class="muted">${l.type} · danger ${l.danger}</span></div>`).join('');}
+function addLog(text,success=true){logs.push((success?'✓ ':'✗ ')+text);while(logs.length>80)logs.shift();$('log').textContent=logs.join('\n\n');$('log').scrollTop=$('log').scrollHeight}
+async function load(){const r=await fetch('/api/state');const s=await r.json();render(s);if(!logs.length)addLog('Ta vie commence au Village du Berceau.');}
+async function act(i){await send(state.actions[i].command)}
+async function send(command){if(!command)return;document.querySelectorAll('button').forEach(b=>b.disabled=true);try{const r=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command})});const data=await r.json();if(data.result){addLog(data.result.feedback,data.result.success);if(data.result.minutesSpent)addLog(`Temps écoulé : ${data.result.minutesSpent} min.`)}render(data.state)}catch(e){addLog('Erreur de connexion au monde.',false)}finally{document.querySelectorAll('button').forEach(b=>b.disabled=false)}}
+function sendCommand(){const i=$('command');const c=i.value.trim();if(!c)return;i.value='';send(c)}
+async function newGame(){if(!confirm('Recommencer une nouvelle vie ?'))return;logs.length=0;const r=await fetch('/api/new',{method:'POST'});render(await r.json());addLog('Nouvelle vie. Le monde recommence autour de toi.')}
+$('command').addEventListener('keydown',e=>{if(e.key==='Enter')sendCommand()});load();
+</script></body></html>
