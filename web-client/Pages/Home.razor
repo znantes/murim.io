@@ -1,0 +1,120 @@
+@page "/"
+@implements IDisposable
+
+<PageTitle>Murim.io</PageTitle>
+
+@if (_world?.PlayerNpc is null)
+{
+    <div class="loading">Chargement du monde…</div>
+}
+else
+{
+    var player = _world.PlayerNpc;
+    <header class="top">
+        <div><div class="brand">☯ MURIM.IO</div><div class="tag">Le monde vivant du Murim, directement dans ton navigateur.</div></div>
+        <button @onclick="NewLife">Nouvelle vie</button>
+    </header>
+
+    <div class="worldbar">
+        <span>Jour @_world.Time.Day</span><span>@_world.Time.Period</span><span>@_world.Npcs.Values.Count(n => n.IsAlive) vies</span><span>@_world.Geography.Locations.Count lieux</span><span>@_world.Families.Count familles</span><span>@_world.Commerce.Businesses.Count commerces</span><span>@_world.Martial.Techniques.Count techniques</span>
+    </div>
+
+    <div class="layout">
+        <aside class="panel">
+            <h3>Ton personnage</h3>
+            <h2>@player.Identity.DisplayName</h2>
+            <div class="muted">@player.AgeYears ans · @player.Profession.Type</div>
+            <div class="section">@Meter("Santé", player.Body.Health) @Meter("Faim", player.Needs.Hunger) @Meter("Soif", player.Needs.Thirst) @Meter("Sommeil", player.Needs.Sleep) @Meter("Fatigue", player.Needs.Fatigue) @Meter("Confort", player.Needs.Comfort)</div>
+            <div class="stats"><span>Richesse</span><b>@player.Wealth.ToString("0.0")</b></div>
+            <div class="stats"><span>Douleur</span><b>@player.CurrentPain.ToString("0.0")</b></div>
+            <div class="section hint">Chaque action passe par le moteur Murim : survie, temps, déplacements, économie, relations, médecine, arts martiaux et autonomie continuent d'exister derrière l'interface.</div>
+        </aside>
+
+        <main>
+            <section class="panel hero">
+                <span class="pill">@CurrentLocation()?.Type</span>
+                <h1>@(CurrentLocation()?.Name ?? "Lieu inconnu")</h1>
+                <div class="muted">@(CurrentLocation() is { } l ? $"{l.Region} · population {l.Population} · danger {l.DangerLevel}/100" : "")</div>
+            </section>
+
+            <section class="panel section">
+                <div class="tabs">
+                    @foreach (var tab in _tabs)
+                    { <button class="@(tab == _tab ? "active" : "")" @onclick="() => _tab = tab">@tab</button> }
+                </div>
+                @if (_tab == "Jouer")
+                {
+                    <div class="actions">@foreach (var action in AvailableActions()) { <button @onclick="() => Act(action.Command)">@action.Label</button> }</div>
+                    <div class="section"><h3>Journal</h3><div class="log">@foreach (var line in _log) { <div class="@line.Css">@line.Text</div> }</div><div class="command"><input @bind="_command" @bind:event="oninput" @onkeydown="HandleKey" placeholder="observe, parle à..., va à..., dors, enquête…" /><button @onclick="Send">Agir</button></div></div>
+                }
+                else if (_tab == "Monde")
+                {
+                    <h3>Lieux connus</h3><div class="cards">@foreach (var l in KnownLocations()) { <button class="card" @onclick="() => Act($"va à {l.Name}")"><b>@l.Name</b><span>@l.Type · danger @l.DangerLevel</span></button> }</div>
+                }
+                else if (_tab == "Arts martiaux")
+                {
+                    <h3>Techniques</h3><div class="cards">@foreach (var t in _world.Martial.Techniques.Values.OrderBy(x => x.Name)) { <div class="card"><b>@t.Name</b><span>Disponible dans le moteur martial.</span><button @onclick="() => Act($"entraine toi avec {t.Name}")">S'entraîner</button></div> }</div>
+                }
+                else if (_tab == "Relations")
+                {
+                    <h3>Relations</h3><div class="cards">@foreach (var r in player.Relationships.Where(r => r.IsActive && _world.Npcs.TryGetValue(r.ToNpcId, out var n) && n.IsAlive).OrderByDescending(r => r.Trust)) { <div class="card"><b>@_world.Npcs[r.ToNpcId].Identity.DisplayName</b><span>@r.Type · confiance @r.Trust.ToString("0.00") · respect @r.Respect.ToString("0.00") · affinité @r.Affinity.ToString("0.00")</span></div> }</div>
+                }
+                else if (_tab == "Mémoire")
+                {
+                    <h3>Connaissances</h3><div class="cards">@foreach (var k in player.Knowledge.OrderByDescending(k => k.Confidence).Take(80)) { <div class="card"><b>@k.Kind · confiance @((k.Confidence * 100).ToString("0"))%</b><span>@k.Summary</span><small>Confirmations @k.ConfirmationCount · dernière confirmation jour @k.LastConfirmedDay</small></div> }</div>
+                }
+                else
+                {
+                    <div class="cards"><div class="card"><b>Identité</b><span>@player.Identity.DisplayName · @player.AgeYears ans · @player.Profession.Type</span></div><div class="card"><b>Inventaire</b>@foreach (var e in player.Inventory.Entries.Where(e => e.Quantity > 0)) { if (_world.Inventory.Items.TryGetValue(e.ItemId, out var item)) { <span>@item.Name × @e.Quantity</span> } }</div><div class="card"><b>Monde</b><span>@_world.Npcs.Count PNJ · @_world.Buildings.Buildings.Count bâtiments · @_world.Commerce.Businesses.Count entreprises</span></div></div>
+                }
+            </section>
+
+            <section class="panel section"><h3>Personnes présentes</h3><div class="cards">@foreach (var npc in PresentPeople()) { <div class="card"><b>@npc.Identity.DisplayName</b><span>@npc.AgeYears ans · @npc.Profession.Type · compétence @npc.Profession.Skill.ToString("0")</span><button @onclick="() => Act($"parle à {npc.Identity.DisplayName}")">Parler</button></div> }</div></section>
+        </main>
+
+        <aside><section class="panel"><h3>Vue du monde</h3><div class="stats"><span>PNJ vivants</span><b>@_world.Npcs.Values.Count(n => n.IsAlive)</b></div><div class="stats"><span>Lieux</span><b>@_world.Geography.Locations.Count</b></div><div class="stats"><span>Familles</span><b>@_world.Families.Count</b></div><div class="stats"><span>Bâtiments</span><b>@_world.Buildings.Buildings.Count</b></div><div class="stats"><span>Commerces</span><b>@_world.Commerce.Businesses.Count</b></div><div class="stats"><span>Techniques</span><b>@_world.Martial.Techniques.Count</b></div></section><section class="panel section"><h3>Actions rapides</h3><div class="quick"><button @onclick="() => Act("observe")">👁 Observer</button><button @onclick="() => Act("enquête")">🔎 Enquêter</button><button @onclick="() => Act("détecte les dangers")">⚠ Détecter les dangers</button><button @onclick="() => Act("cherche du travail")">🛠 Chercher du travail</button><button @onclick="() => Act("dors")">🌙 Dormir</button><button @onclick="() => Act("inspecte ton profil")">📜 Profil</button></div></section></aside>
+    </div>
+}
+
+@code {
+    private WorldState? _world;
+    private PlayerCommandService _commands = new();
+    private string _command = "";
+    private string _tab = "Jouer";
+    private readonly string[] _tabs = ["Jouer", "Monde", "Personnage", "Arts martiaux", "Relations", "Mémoire"];
+    private readonly List<(string Text, string Css)> _log = [];
+
+    protected override void OnInitialized()
+    {
+        NewLife();
+    }
+
+    private void NewLife()
+    {
+        _world = new WorldState();
+        _world.CreatePlayerAtBirth(20260908, "Murim");
+        _log.Clear();
+        AddLog("Ta vie commence au Village du Berceau.", true);
+        _tab = "Jouer";
+    }
+
+    private Location? CurrentLocation() => _world?.PlayerNpc?.CurrentLocationId is Guid id && _world.Geography.Locations.TryGetValue(id, out var location) ? location : null;
+    private IEnumerable<Location> KnownLocations() => _world!.PlayerNpc!.KnownLocationIds.Where(id => _world.Geography.Locations.ContainsKey(id)).Select(id => _world.Geography.Locations[id]).OrderBy(l => l.Name);
+    private IEnumerable<Npc> PresentPeople() => _world!.Npcs.Values.Where(n => n.IsAlive && n.Id != _world.PlayerNpc!.Id && n.CurrentLocationId == _world.PlayerNpc.CurrentLocationId && n.CurrentBuildingId == _world.PlayerNpc.CurrentBuildingId).OrderBy(n => n.Identity.DisplayName).Take(32);
+    private IEnumerable<ContextualAction> AvailableActions() => _world!.PlayerNpc?.CurrentLocationId is null ? [] : _world.ContextualActions.GetAvailable(_world, _world.PlayerNpc);
+
+    private void Act(string command)
+    {
+        if (_world is null || string.IsNullOrWhiteSpace(command)) return;
+        var result = _commands.Execute(_world, command.Trim());
+        AddLog(result.Feedback, result.Success);
+        if (result.MinutesSpent > 0) AddLog($"Temps écoulé : {result.MinutesSpent} min.", true);
+        StateHasChanged();
+    }
+
+    private void Send() { var c = _command.Trim(); _command = ""; Act(c); }
+    private void HandleKey(KeyboardEventArgs e) { if (e.Key == "Enter") Send(); }
+    private void AddLog(string text, bool success) { _log.Insert(0, (text, success ? "good" : "bad")); if (_log.Count > 80) _log.RemoveAt(_log.Count - 1); }
+    private static MarkupString Meter(string name, double value) => new($"<div class='meter'><div class='stats'><span>{name}</span><b>{Math.Clamp(value, 0, 100):0}</b></div><div class='bar'><div class='fill' style='width:{Math.Clamp(value, 0, 100):0}%'></div></div></div>");
+    public void Dispose() { }
+}
