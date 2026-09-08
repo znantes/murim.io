@@ -6,5 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="web/**/*.cs" />
+    <Compile Remove="web-client/**/*.cs" />
   </ItemGroup>
 </Project>
