@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Murim.Web</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../src/World/**/*.cs" LinkBase="src/World" />
+    <Compile Include="../src/Simulation/**/*.cs" LinkBase="src/Simulation" />
+  </ItemGroup>
+</Project>
