@@ -1,81 +1,97 @@
 @page "/"
 @implements IDisposable
 
-<PageTitle>Murim.io</PageTitle>
+<PageTitle>Murim — Légende du Jianghu</PageTitle>
 
 @if (_world?.PlayerNpc is null)
 {
-    <div class="loading">Chargement du monde…</div>
+    <div class="boot"><div class="brand">☯ MURIM</div><div>Forge de ta légende…</div></div>
 }
 else
 {
-    var player = _world.PlayerNpc;
-    <header class="top"><div><div class="brand">☯ MURIM.IO</div><div class="tag">Le monde vivant du Murim, directement dans ton navigateur.</div></div><button @onclick="NewLife">Nouvelle vie</button></header>
-    <div class="worldbar"><span>Jour @_world.Time.Day</span><span>@_world.Time.Period</span><span>@_world.Npcs.Values.Count(n => n.IsAlive) vies</span><span>@_world.Geography.Locations.Count lieux</span><span>@_world.Families.Count familles</span><span>@_world.Commerce.Businesses.Count commerces</span><span>@_world.Martial.Techniques.Count techniques</span></div>
-    <div class="layout">
-        <aside class="panel"><h3>Ton personnage</h3><h2>@player.Identity.DisplayName</h2><div class="muted">@player.AgeYears ans · @player.Profession.Type</div><div class="section">@Meter("Santé", player.Body.Health) @Meter("Faim", player.Needs.Hunger) @Meter("Soif", player.Needs.Thirst) @Meter("Sommeil", player.Needs.Sleep) @Meter("Fatigue", player.Needs.Fatigue) @Meter("Confort", player.Needs.Comfort)</div><div class="stats"><span>Richesse</span><b>@player.Wealth.ToString("0.0")</b></div><div class="stats"><span>Douleur</span><b>@player.CurrentPain.ToString("0.0")</b></div><div class="section hint">Chaque action passe par le moteur Murim : survie, temps, déplacements, économie, relations, médecine, arts martiaux et autonomie continuent d'exister derrière l'interface.</div></aside>
-        <main>
-            <section class="panel hero"><span class="pill">@CurrentLocation()?.Type</span><h1>@(CurrentLocation()?.Name ?? "Lieu inconnu")</h1><div class="muted">@(CurrentLocation() is { } loc ? $"{loc.Region} · population {loc.Population} · danger {loc.DangerLevel}/100" : "")</div></section>
-            <section class="panel section">
-                <div class="tabs">@foreach (var tab in _tabs) { <button class="@(tab == _tab ? "active" : "")" @onclick="() => _tab = tab">@tab</button> }</div>
-                @if (_tab == "Jouer")
-                {
-                    <div class="actions">@foreach (var action in AvailableActions()) { <button @onclick="() => Act(action.Command)">@action.Label</button> }</div>
-                    <div class="section"><h3>Journal</h3><div class="log">@foreach (var line in _log) { <div class="@line.Css">@line.Text</div> }</div><div class="command"><input @bind="_command" @bind:event="oninput" @onkeydown="HandleKey" placeholder="observe, parle à..., va à..., dors, enquête…" /><button @onclick="Send">Agir</button></div></div>
-                }
-                else if (_tab == "Monde")
-                {
-                    <h3>Lieux connus</h3><div class="cards">@foreach (var place in KnownLocations()) { <button class="card" @onclick="() => TravelTo(place.Name)"><b>@place.Name</b><span>@place.Type · danger @place.DangerLevel</span></button> }</div>
-                }
-                else if (_tab == "Arts martiaux")
-                {
-                    <h3>Techniques</h3><div class="cards">@foreach (var technique in _world.Martial.Techniques.Values.OrderBy(x => x.Name)) { <div class="card"><b>@technique.Name</b><span>Disponible dans le moteur martial.</span><button @onclick="() => Train(technique.Name)">S'entraîner</button></div> }</div>
-                }
-                else if (_tab == "Relations")
-                {
-                    <h3>Relations</h3><div class="cards">@foreach (var relationship in player.Relationships.Where(r => r.IsActive && _world.Npcs.TryGetValue(r.ToNpcId, out var n) && n.IsAlive).OrderByDescending(r => r.Trust)) { <div class="card"><b>@_world.Npcs[relationship.ToNpcId].Identity.DisplayName</b><span>@relationship.Type · confiance @relationship.Trust.ToString("0.00") · respect @relationship.Respect.ToString("0.00") · affinité @relationship.Affinity.ToString("0.00")</span></div> }</div>
-                }
-                else if (_tab == "Mémoire")
-                {
-                    <h3>Connaissances</h3><div class="cards">@foreach (var knowledge in player.Knowledge.OrderByDescending(k => k.Confidence).Take(80)) { <div class="card"><b>@knowledge.Kind · confiance @((knowledge.Confidence * 100).ToString("0"))%</b><span>@knowledge.Summary</span><small>Confirmations @knowledge.ConfirmationCount · dernière confirmation jour @knowledge.LastConfirmedDay</small></div> }</div>
-                }
-                else
-                {
-                    <div class="cards"><div class="card"><b>Identité</b><span>@player.Identity.DisplayName · @player.AgeYears ans · @player.Profession.Type</span></div><div class="card"><b>Inventaire</b>@foreach (var entry in player.Inventory.Entries.Where(e => e.Quantity > 0)) { if (_world.Inventory.Items.TryGetValue(entry.ItemId, out var item)) { <span>@item.Name × @entry.Quantity</span> } }</div><div class="card"><b>Monde</b><span>@_world.Npcs.Count PNJ · @_world.Buildings.Buildings.Count bâtiments · @_world.Commerce.Businesses.Count entreprises</span></div></div>
-                }
-            </section>
-            <section class="panel section"><h3>Personnes présentes</h3><div class="cards">@foreach (var npc in PresentPeople()) { <div class="card"><b>@npc.Identity.DisplayName</b><span>@npc.AgeYears ans · @npc.Profession.Type · compétence @npc.Profession.Skill.ToString("0")</span><button @onclick="() => TalkTo(npc.Identity.DisplayName)">Parler</button></div> }</div></section>
-        </main>
-        <aside class="right"><section class="panel"><h3>Vue du monde</h3><div class="stats"><span>PNJ vivants</span><b>@_world.Npcs.Values.Count(n => n.IsAlive)</b></div><div class="stats"><span>Lieux</span><b>@_world.Geography.Locations.Count</b></div><div class="stats"><span>Familles</span><b>@_world.Families.Count</b></div><div class="stats"><span>Bâtiments</span><b>@_world.Buildings.Buildings.Count</b></div><div class="stats"><span>Commerces</span><b>@_world.Commerce.Businesses.Count</b></div><div class="stats"><span>Techniques</span><b>@_world.Martial.Techniques.Count</b></div></section><section class="panel section"><h3>Actions rapides</h3><div class="quick"><button @onclick="Observe">👁 Observer</button><button @onclick="Investigate">🔎 Enquêter</button><button @onclick="DetectDanger">⚠ Détecter les dangers</button><button @onclick="FindWork">🛠 Chercher du travail</button><button @onclick="Sleep">🌙 Dormir</button><button @onclick="Profile">📜 Profil</button></div></section></aside>
+    var p = _world.PlayerNpc;
+    var loc = CurrentLocation();
+    <header class="topbar"><div><div class="brand">☯ MURIM <span>LEGENDS</span></div><div class="subtitle">Une vie. Mille choix. Un monde qui n'attend personne.</div></div><div class="top-actions"><span class="season-chip">SAISON @_career.Season</span><button class="ghost" @onclick="NewLife">Nouvelle légende</button></div></header>
+    <div class="hero-grid">
+        <section class="profile-card panel"><div class="avatar">@Initials(p.Identity.DisplayName)</div><div class="profile-main"><div class="eyebrow">PROTAGONISTE</div><h1>@p.Identity.DisplayName</h1><div class="muted">@p.AgeYears ans · @p.Profession.Type · @_career.Club</div><div class="rank-row"><span class="rank">RANG @_career.Rank</span><span>Réputation @_career.Reputation</span><span>Potentiel @_career.Potential</span></div><div class="xp"><div class="xp-fill" style="width:@_career.XpPercent%"></div></div></div><div class="overall"><b>@_career.Overall</b><small>GEN</small></div></section>
+        <section class="panel score-card"><div class="eyebrow">DESTIN DU JOUR</div><h2>@_career.DailyTitle</h2><p>@_career.DailyDescription</p><button class="gold" @onclick="ClaimDaily">Jouer le défi · @_career.DailyReward</button></section>
     </div>
+    <nav class="tabs">@foreach (var tab in _tabs) { <button class="@(tab == _tab ? "active" : "")" @onclick="() => _tab = tab">@tab</button> }</nav>
+    <main class="dashboard">
+        @if (_tab == "Carrière")
+        {
+            <section class="panel section"><div class="section-head"><div><div class="eyebrow">MODE HISTOIRE</div><h2>Écris ta légende</h2></div><span class="pill">@_career.Year / @_career.NextYear</span></div><div class="career-grid"><div class="timeline">@foreach (var season in _career.History) { <div class="timeline-item @(season.Current ? "current" : "")"><span>@season.Year</span><div><b>@season.Club</b><small>@season.Result · @season.Goals buts · @season.Assists passes</small></div></div> }</div><div class="choice-card"><div class="eyebrow">PROCHAIN CHAPITRE</div><h3>@_career.NextEventTitle</h3><p>@_career.NextEventText</p><div class="choice-list">@foreach (var choice in _career.Choices) { <button class="choice" @onclick="() => MakeChoice(choice.Id)"><b>@choice.Title</b><span>@choice.Description</span><em>@choice.Consequence</em></button> }</div></div></div></section>
+            <section class="cards-3"><div class="panel statbox"><span>FORTUNE</span><b>@_career.Money.ToString("0.0") M€</b><small>Contrats + primes + business</small></div><div class="panel statbox"><span>TITRES</span><b>@_career.Trophies</b><small>Objectif : devenir immortel</small></div><div class="panel statbox"><span>FANS</span><b>@_career.Fans.ToString("N0")</b><small>Une communauté qui te suit</small></div></section>
+        }
+        else if (_tab == "Match")
+        {
+            <section class="panel section match-panel"><div class="eyebrow">SIMULATION</div><h2>@_career.Club vs @_career.Opponent</h2><div class="scoreboard"><div><span>Murim FC</span><b>@_career.HomeScore</b></div><strong>@_career.MatchMinute'</strong><div><span>@_career.Opponent</span><b>@_career.AwayScore</b></div></div><div class="match-events">@foreach (var e in _career.MatchEvents) { <div><span>@e.Minute'</span><b>@e.Icon</b><span>@e.Text</span></div> }</div><div class="match-controls"><button class="gold" @onclick="PlayMatch">⚽ Jouer l'action</button><button @onclick="TrainMatch">🔥 Donner tout</button><button @onclick="CalmMatch">🧠 Gérer le rythme</button></div></section>
+        }
+        else if (_tab == "Entraînement")
+        {
+            <section class="panel section"><div class="section-head"><div class="eyebrow">PROGRESSION</div><h2>Centre d'entraînement</h2></div><div class="training-grid">@foreach (var t in _career.Training) { <button class="training" @onclick="() => Train(t.Id)"><b>@t.Icon @t.Name</b><span>@t.Description</span><em>+@t.Gain GEN · coût @t.Cost énergie</em></button> }</div></section>
+        }
+        else if (_tab == "Monde")
+        {
+            <section class="panel section"><div class="section-head"><div><div class="eyebrow">JIANGHU</div><h2>@(loc?.Name ?? "Territoire inconnu")</h2></div><span class="pill">Jour @_world.Time.Day · @_world.Time.Period</span></div><div class="world-stats"><div><b>@_world.Npcs.Values.Count(n => n.IsAlive)</b><span>vies</span></div><div><b>@_world.Geography.Locations.Count</b><span>lieux</span></div><div><b>@_world.Commerce.Businesses.Count</b><span>commerces</span></div><div><b>@_world.Martial.Techniques.Count</b><span>techniques</span></div></div><h3>Lieux connus</h3><div class="cards">@foreach (var place in KnownLocations()) { <button class="card" @onclick="() => TravelTo(place.Name)"><b>@place.Name</b><span>@place.Type · danger @place.DangerLevel/100</span></button> }</div></section>
+        }
+        else if (_tab == "Arts martiaux")
+        {
+            <section class="panel section"><div class="eyebrow">WUXIA</div><h2>Arts martiaux</h2><div class="martial-grid">@foreach (var t in _world.Martial.Techniques.Values.OrderBy(x => x.Name)) { <div class="technique"><b>@t.Name</b><span>Technique maîtrisable dans le moteur Murim.</span><button @onclick="() => TrainTechnique(t.Name)">S'entraîner</button></div> }</div></section>
+        }
+        else if (_tab == "Relations")
+        {
+            <section class="panel section"><div class="eyebrow">RÉSEAU</div><h2>Alliés, rivaux, mentors</h2><div class="cards">@foreach (var r in p.Relationships.Where(r => r.IsActive && _world.Npcs.TryGetValue(r.ToNpcId, out var n) && n.IsAlive).OrderByDescending(r => r.Trust).Take(30)) { <div class="card"><b>@_world.Npcs[r.ToNpcId].Identity.DisplayName</b><span>@r.Type · confiance @r.Trust.ToString("0.00") · respect @r.Respect.ToString("0.00")</span><button @onclick="() => TalkTo(_world.Npcs[r.ToNpcId].Identity.DisplayName)">Interagir</button></div> }</div></section>
+        }
+        else
+        {
+            <section class="panel section"><div class="eyebrow">LÉGENDE</div><h2>Statistiques & mémoire</h2><div class="stat-list"><div>Santé <b>@p.Body.Health:0</b></div><div>Faim <b>@p.Needs.Hunger:0</b></div><div>Soif <b>@p.Needs.Thirst:0</b></div><div>Sommeil <b>@p.Needs.Sleep:0</b></div><div>Douleur <b>@p.CurrentPain:0</b></div><div>Confiance moyenne <b>@AverageKnowledge():0%</b></div></div><h3>Journal vivant</h3><div class="log">@foreach (var line in _log) { <div class="@line.Css">@line.Text</div> }</div></section>
+        }
+    </main>
+    <aside class="command-bar panel"><div class="quick">@foreach (var q in _quick) { <button @onclick="() => Act(q.Command)">@q.Icon @q.Label</button> }</div><div class="command"><input @bind="_command" @bind:event="oninput" @onkeydown="HandleKey" placeholder="Écris ton action : observe, parle à..., va à..., enquête, dors…" /><button class="gold" @onclick="Send">Agir</button></div></aside>
 }
 
 @code {
     private WorldState? _world;
     private readonly PlayerCommandService _commands = new();
-    private string _command = "";
-    private string _tab = "Jouer";
-    private readonly string[] _tabs = ["Jouer", "Monde", "Personnage", "Arts martiaux", "Relations", "Mémoire"];
     private readonly List<(string Text, string Css)> _log = [];
+    private string _command = "";
+    private string _tab = "Carrière";
+    private readonly string[] _tabs = ["Carrière", "Match", "Entraînement", "Monde", "Arts martiaux", "Relations", "Légende"];
+    private readonly List<(string Icon, string Label, string Command)> _quick = [("👁", "Observer", "observe"), ("🔎", "Enquête", "enquête"), ("⚠", "Danger", "détecte les dangers"), ("💼", "Travail", "cherche du travail"), ("🌙", "Dormir", "dors"), ("📜", "Profil", "inspecte ton profil")];
+    private CareerState _career = new();
     protected override void OnInitialized() => NewLife();
-    private void NewLife() { _world = new WorldState(); _world.CreatePlayerAtBirth(20260908, "Murim"); _log.Clear(); AddLog("Ta vie commence au Village du Berceau.", true); _tab = "Jouer"; }
+    private void NewLife() { _world = new WorldState(); _world.CreatePlayerAtBirth(20260908, "Murim"); _career = CareerState.New(); _log.Clear(); AddLog("Ta légende commence. Le monde continue de vivre autour de toi.", true); }
     private Location? CurrentLocation() => _world?.PlayerNpc?.CurrentLocationId is Guid id && _world.Geography.Locations.TryGetValue(id, out var location) ? location : null;
-    private IEnumerable<Location> KnownLocations() => _world!.PlayerNpc!.KnownLocationIds.Where(id => _world.Geography.Locations.ContainsKey(id)).Select(id => _world.Geography.Locations[id]).OrderBy(l => l.Name);
-    private IEnumerable<Npc> PresentPeople() => _world!.Npcs.Values.Where(n => n.IsAlive && n.Id != _world.PlayerNpc!.Id && n.CurrentLocationId == _world.PlayerNpc.CurrentLocationId && n.CurrentBuildingId == _world.PlayerNpc.CurrentBuildingId).OrderBy(n => n.Identity.DisplayName).Take(32);
-    private IEnumerable<ContextualAction> AvailableActions() => _world!.PlayerNpc?.CurrentLocationId is null ? [] : _world.ContextualActions.GetAvailable(_world, _world.PlayerNpc);
+    private IEnumerable<Location> KnownLocations() => _world!.PlayerNpc!.KnownLocationIds.Where(id => _world.Geography.Locations.ContainsKey(id)).Select(id => _world.Geography.Locations[id]).OrderBy(x => x.Name);
     private void TravelTo(string name) => Act($"va à {name}");
-    private void Train(string name) => Act($"entraine toi avec {name}");
+    private void TrainTechnique(string name) => Act($"entraine toi avec {name}");
     private void TalkTo(string name) => Act($"parle à {name}");
-    private void Observe() => Act("observe");
-    private void Investigate() => Act("enquête");
-    private void DetectDanger() => Act("détecte les dangers");
-    private void FindWork() => Act("cherche du travail");
-    private void Sleep() => Act("dors");
-    private void Profile() => Act("inspecte ton profil");
-    private void Act(string command) { if (_world is null || string.IsNullOrWhiteSpace(command)) return; var result = _commands.Execute(_world, command.Trim()); AddLog(result.Feedback, result.Success); if (result.MinutesSpent > 0) AddLog($"Temps écoulé : {result.MinutesSpent} min.", true); StateHasChanged(); }
-    private void Send() { var c = _command.Trim(); _command = ""; Act(c); }
+    private void Act(string command) { if (_world is null) return; var result = _commands.Execute(_world, command); AddLog(result.Feedback, result.Success); if (result.MinutesSpent > 0) AddLog($"Temps écoulé : {result.MinutesSpent} min.", true); _career.Fans += result.Success ? 7 : 0; StateHasChanged(); }
+    private void Send() { var c = _command.Trim(); _command = ""; if (c.Length > 0) Act(c); }
     private void HandleKey(KeyboardEventArgs e) { if (e.Key == "Enter") Send(); }
-    private void AddLog(string text, bool success) { _log.Insert(0, (text, success ? "good" : "bad")); if (_log.Count > 80) _log.RemoveAt(_log.Count - 1); }
-    private static MarkupString Meter(string name, double value) => new($"<div class='meter'><div class='stats'><span>{name}</span><b>{Math.Clamp(value, 0, 100):0}</b></div><div class='bar'><div class='fill' style='width:{Math.Clamp(value, 0, 100):0}%'></div></div></div>");
+    private void PlayMatch() { _career.HomeScore += Random.Shared.NextDouble() > .52 ? 1 : 0; _career.MatchMinute = Math.Min(90, _career.MatchMinute + Random.Shared.Next(6, 18)); _career.MatchEvents.Insert(0, new MatchEvent(_career.MatchMinute, "⚡", "Tu provoques une action décisive.")); _career.Xp = Math.Min(999, _career.Xp + 24); }
+    private void TrainMatch() { _career.MatchMinute = Math.Min(90, _career.MatchMinute + 12); _career.Overall = Math.Min(99, _career.Overall + 1); _career.Xp += 18; }
+    private void CalmMatch() { _career.MatchMinute = Math.Min(90, _career.MatchMinute + 10); _career.Reputation += 1; }
+    private void Train(string id) { var t = _career.Training.First(x => x.Id == id); if (_career.Energy >= t.Cost) { _career.Energy -= t.Cost; _career.Overall = Math.Min(99, _career.Overall + t.Gain); _career.Xp += t.Gain * 5; AddLog($"{t.Name} terminé : +{t.Gain} GEN.", true); } else AddLog("Tu es trop fatigué pour cette séance.", false); }
+    private void MakeChoice(string id) { var c = _career.Choices.First(x => x.Id == id); _career.Reputation += c.Reputation; _career.Money += c.Money; _career.Fans += c.Fans; _career.Xp += c.Xp; AddLog(c.Result, true); }
+    private void ClaimDaily() { if (_career.DailyClaimed) { AddLog("Défi déjà terminé aujourd'hui.", false); return; } _career.DailyClaimed = true; _career.Money += 0.25; _career.Xp += 50; _career.Fans += 250; AddLog("Défi du jour remporté : récompenses encaissées.", true); }
+    private double AverageKnowledge() => _world?.PlayerNpc?.Knowledge.Count > 0 ? _world.PlayerNpc.Knowledge.Average(k => k.Confidence) * 100 : 0;
+    private static string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => x[0])).ToUpperInvariant();
+    private void AddLog(string text, bool success) { _log.Insert(0, (text, success ? "good" : "bad")); if (_log.Count > 60) _log.RemoveAt(_log.Count - 1); }
     public void Dispose() { }
+    private sealed class CareerState
+    {
+        public int Season=1, Year=2026, NextYear=2027, Rank=3, Reputation=31, Potential=87, Overall=64, Xp=180, Trophies=0, Fans=1840, Energy=100; public double Money=1.4;
+        public string Club="Académie du Dragon", Opponent="Loups du Nord", DailyTitle="Le premier grand défi", DailyDescription="Produis une action décisive et impose ton nom.", DailyReward="0.25 M€";
+        public bool DailyClaimed; public int HomeScore, AwayScore, MatchMinute=18; public string NextEventTitle="Le duel des recruteurs", NextEventText="Deux clubs t'observent. Ton prochain choix peut changer ton salaire, tes relations et la suite de ta carrière.";
+        public List<MatchEvent> MatchEvents=[new(12,"🔥","Ton premier duel crée le danger.")]; public List<SeasonLine> History=[new(2026,"Académie du Dragon","En cours",2,1)];
+        public List<Choice> Choices=[new("risk","Accepter le duel","Affronter le vétéran qui te provoque.","Risque élevé · réputation +",3,0,180,45,"Le vestiaire parle de ton courage."),new("mentor","Suivre le maître","Sacrifier du temps libre pour progresser.","GEN +2 · fans stables",1,0,20,90,"Le maître accepte de te transmettre un secret."),new("money","Signer maintenant","Choisir la sécurité financière.","Argent +0.8 M€ · potentiel -1",0,0.8,35,35,"Ton premier contrat professionnel est signé.")];
+        public List<TrainingLine> Training=[new("speed","⚡","Vitesse","Explosivité et déplacements.",2,16),new("tech","🎯","Technique","Contrôle, passes et finition.",3,22),new("mind","🧠","Mental","Concentration et sang-froid.",2,12),new("power","💪","Physique","Force, endurance et récupération.",2,18),new("style","✨","Style","Crée une signature que les fans reconnaîtront.",1,10)];
+        public int XpPercent => Math.Clamp(Xp % 200,0,200)/2; public static CareerState New()=>new();
+    }
+    private record Choice(string Id,string Title,string Description,string Consequence,int Reputation,double Money,int Fans,int Xp,string Result);
+    private record TrainingLine(string Id,string Icon,string Name,string Description,int Gain,int Cost);
+    private record SeasonLine(int Year,string Club,string Result,int Goals,int Assists){public bool Current=>Year==2026;}
+    private record MatchEvent(int Minute,string Icon,string Text);
 }
