@@ -73,7 +73,7 @@ public sealed record GameView(long Day, string Period, PlayerView Player, Locati
         var actions = player.CurrentLocationId is null ? Array.Empty<ActionView>() : world.ContextualActions.GetAvailable(world, player)
             .Select(a => new ActionView(a.Kind.ToString(), a.Label, a.Command, a.TargetNpcId, a.TargetLocationId, a.TargetBuildingId)).ToArray();
         var inventory = player.Inventory.Entries.Where(e => e.Quantity > 0)
-            .Select(e => world.Inventory.Items.TryGetValue(e.ItemId, out var item) ? new InventoryView(e.ItemId, item.Name, item.Category.ToString(), e.Quantity, item.BasePrice) : null)
+            .Select(e => world.Inventory.Items.TryGetValue(e.ItemId, out var item) ? new InventoryView(e.ItemId, item.Name, item.Category.ToString(), e.Quantity, item.BaseValue) : null)
             .Where(v => v is not null).Cast<InventoryView>().OrderBy(v => v.Name, StringComparer.Ordinal).ToArray();
         var relationships = player.Relationships.Where(r => r.IsActive && world.Npcs.TryGetValue(r.ToNpcId, out var n) && n.IsAlive)
             .Select(r => new RelationshipView(r.ToNpcId, world.Npcs[r.ToNpcId].Identity.DisplayName, r.Type.ToString(), r.Trust, r.Respect, r.Affinity)).OrderByDescending(r => r.Trust).Take(32).ToArray();
@@ -91,7 +91,7 @@ public sealed record PlayerView(Guid Id, string Name, int Age, double Health, do
 public sealed record LocationView(Guid Id, string Name, string Type, string Region, int Population, int Danger);
 public sealed record PersonView(Guid Id, string Name, int Age, string Profession, double Skill, double Wealth);
 public sealed record ActionView(string Kind, string Label, string Command, Guid? TargetNpcId, Guid? TargetLocationId, Guid? TargetBuildingId);
-public sealed record InventoryView(Guid Id, string Name, string Category, int Quantity, double BasePrice);
+public sealed record InventoryView(Guid Id, string Name, string Category, int Quantity, double BaseValue);
 public sealed record RelationshipView(Guid NpcId, string Name, string Type, double Trust, double Respect, double Affinity);
 public sealed record KnowledgeView(Guid Id, string Kind, double Confidence, long LearnedDay, long LastConfirmedDay, int Confirmations, string Summary);
 public sealed record TechniqueView(Guid Id, string Name);
