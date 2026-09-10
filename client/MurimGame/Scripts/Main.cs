@@ -12,6 +12,8 @@ public partial class Main : Control
     private PortraitGeneticsSystem _portraits = null!;
     private LocalScene _scene = LocalScene.BirthRoom;
     private Guid? _selectedDistrictId;
+    private Control? _startupRoot;
+    private Label? _startupLabel;
 
     private Label _identity = null!;
     private Label _portrait = null!;
@@ -27,19 +29,109 @@ public partial class Main : Control
     private VBoxContainer _knowledge = null!;
     private readonly List<string> _chronicle = new();
 
-    public override void _Ready()
+    public override async void _Ready()
     {
-        _runtime = LivingWorldFactory.CreateRuntime(seed: 190724, npcPopulation: 10_000);
-        _commands = new PlayerCommandFacade(_runtime);
-        _portraits = new PortraitGeneticsSystem();
-        _portraits.InitializeWorld(_runtime.World);
-        BuildInterface();
+        ShowStartupScreen();
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
-        var player = _runtime.World.PlayerNpc!;
-        var location = _runtime.World.Locations[player.CurrentLocationId];
-        _scene = player.AgeYears(_runtime.World.Clock) < 3 ? LocalScene.BirthRoom : LocalScene.FamilyRoom;
-        AddStory($"Vous commencez votre vie à {location.Name}. Vous n'êtes pas le centre du monde : les autres habitants ont déjà leurs familles, leurs projets et leurs problèmes.");
-        RefreshAll();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            var runtimeTask = System.Threading.Tasks.Task.Run(() => LivingWorldFactory.CreateRuntime(seed: 190724, npcPopulation: 10_000));
+            while (!runtimeTask.IsCompleted)
+            {
+                if (_startupLabel is not null)
+                    _startupLabel.Text = $"INITIALISATION DU MURIM\n\nCréation des 10 000 vies, familles, métiers et événements…\n{stopwatch.Elapsed.TotalSeconds:0.0} s\n\nLe monde se construit sans bloquer l'interface.";
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            }
+
+            _runtime = await runtimeTask;
+            _commands = new PlayerCommandFacade(_runtime);
+            _portraits = new PortraitGeneticsSystem();
+
+            var player = _runtime.World.PlayerNpc ?? throw new InvalidOperationException("Le monde a été créé sans personnage joueur.");
+            EnsurePortraitFor(player);
+
+            HideStartupScreen();
+            BuildInterface();
+
+            var location = _runtime.World.Locations[player.CurrentLocationId];
+            _scene = player.AgeYears(_runtime.World.Clock) < 3 ? LocalScene.BirthRoom : LocalScene.FamilyRoom;
+            AddStory($"Vous commencez votre vie à {location.Name}. Vous n'êtes pas le centre du monde : les autres habitants ont déjà leurs familles, leurs projets et leurs problèmes.");
+            RefreshAll();
+            GD.Print($"Murim startup completed in {stopwatch.Elapsed.TotalSeconds:0.00}s; NPCs={_runtime.World.Npcs.Count}; renderer={RenderingServer.GetCurrentRenderingDriverName()}");
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"Murim startup failure: {ex}");
+            WriteStartupCrashLog(ex);
+            ShowStartupFailure(ex);
+        }
+    }
+
+    private void ShowStartupScreen()
+    {
+        var root = new ColorRect { Color = new Color("090c11") };
+        root.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        AddChild(root);
+
+        var center = new CenterContainer();
+        center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        root.AddChild(center);
+
+        var box = new VBoxContainer { CustomMinimumSize = new Vector2(560, 220) };
+        box.AddThemeConstantOverride("separation", 18);
+        center.AddChild(box);
+        var title = Heading("MURIM — UNE VIE PARMI DES MILLIERS", 28);
+        title.HorizontalAlignment = HorizontalAlignment.Center;
+        box.AddChild(title);
+        _startupLabel = BodyLabel();
+        _startupLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        _startupLabel.Text = "INITIALISATION DU MURIM\n\nPréparation du monde…";
+        box.AddChild(_startupLabel);
+        _startupRoot = root;
+    }
+
+    private void HideStartupScreen()
+    {
+        if (_startupRoot is null) return;
+        _startupRoot.QueueFree();
+        _startupRoot = null;
+        _startupLabel = null;
+    }
+
+    private void ShowStartupFailure(Exception ex)
+    {
+        if (_startupRoot is null) ShowStartupScreen();
+        if (_startupLabel is null) return;
+        _startupLabel.Text = $"LE MONDE N'A PAS PU DÉMARRER\n\n{ex.GetType().Name}: {ex.Message}\n\nUn journal a été écrit dans le dossier de données Godot :\nlogs/startup_crash.txt\n\nCette erreur est affichée au lieu de fermer silencieusement le jeu.";
+    }
+
+    private static void WriteStartupCrashLog(Exception ex)
+    {
+        try
+        {
+            using var file = Godot.FileAccess.Open("user://logs/startup_crash.txt", Godot.FileAccess.ModeFlags.Write);
+            file?.StoreString($"Murim beta startup failure\nUTC: {DateTime.UtcNow:O}\nOS: {OS.GetName()}\nRenderer: {RenderingServer.GetCurrentRenderingDriverName()}\n\n{ex}");
+        }
+        catch
+        {
+            // File logging must never cause a second crash while reporting the first one.
+        }
+    }
+
+    private PortraitGenome EnsurePortraitFor(Npc npc)
+    {
+        if (npc.ParentIds.Count >= 2 &&
+            _runtime.World.Npcs.TryGetValue(npc.ParentIds[0], out var parentA) &&
+            _runtime.World.Npcs.TryGetValue(npc.ParentIds[1], out var parentB))
+        {
+            _portraits.GetOrCreate(parentA);
+            _portraits.GetOrCreate(parentB);
+            return _portraits.Inherit(npc, parentA, parentB);
+        }
+        return _portraits.GetOrCreate(npc);
     }
 
     private void BuildInterface()
@@ -220,7 +312,7 @@ public partial class Main : Control
     private void RefreshAll()
     {
         var world = _runtime.World; var player = world.PlayerNpc!; var location = world.Locations[player.CurrentLocationId]; var age = player.AgeYears(world.Clock);
-        _portraits.UpdateVisibleAge(player, world.Clock); _portraits.SyncPermanentMarks(player);
+        EnsurePortraitFor(player); _portraits.UpdateVisibleAge(player, world.Clock); _portraits.SyncPermanentMarks(player);
         var genome = _portraits.GetOrCreate(player); var appearance = _portraits.AppearanceFor(player);
         _portrait.Text = $"PORTRAIT PARAMÉTRIQUE\nvisage #{Math.Abs(player.Id.GetHashCode()):X6}\nâge apparent {appearance.ApparentAge:0.#} ans\ntraits héréditaires actifs\nvisage {genome.FaceWidth:0.00} · mâchoire {genome.JawWidth:0.00} · yeux {genome.EyeSize:0.00}";
         _identity.Text = $"{player.Identity.DisplayName}\n{age} an(s)\nOrigine : {player.Identity.SocialOrigin}";
@@ -411,7 +503,7 @@ public partial class Main : Control
         foreach (var npc in present)
         {
             var relation = player.Relationships.GetValueOrDefault(npc.Id); var knownName = relation is not null && relation.Familiarity >= 15;
-            var label = knownName ? npc.Identity.DisplayName : "Personne inconnue"; _portraits.GetOrCreate(npc); _portraits.UpdateVisibleAge(npc, _runtime.World.Clock);
+            var label = knownName ? npc.Identity.DisplayName : "Personne inconnue"; EnsurePortraitFor(npc); _portraits.UpdateVisibleAge(npc, _runtime.World.Clock);
             var apparentAge = _portraits.AppearanceFor(npc).ApparentAge; var activity = _runtime.Routines.CurrentActivity(npc, _runtime.World.Clock);
             _nearby.AddChild(TextCard($"{label}\nâge apparent ~{apparentAge:0} · {activity}"));
         }
