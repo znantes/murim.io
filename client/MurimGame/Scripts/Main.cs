@@ -29,7 +29,7 @@ public partial class Main : Control
     {
         _runtime = LivingWorldFactory.CreateRuntime(seed: 190724, npcPopulation: 10_000);
         _commands = new PlayerCommandFacade(_runtime);
-        _portraits = new PortraitGeneticsSystem(190724 + 811);
+        _portraits = new PortraitGeneticsSystem();
         _portraits.InitializeWorld(_runtime.World);
         BuildInterface();
 
@@ -330,7 +330,7 @@ public partial class Main : Control
             AddStory("Vous repérez des ouvrages gardés hors de portée. Savoir qu'ils existent ne signifie ni les comprendre ni avoir la permission de les lire.");
             RefreshAll(); return;
         }
-        var ordinary = _runtime.Content.Techniques.First(t => t.Rarity == Rarity.Ordinary && t.Domain is TechniqueDomain.Fist or TechniqueDomain.Palm or TechniqueDomain.InternalCultivation);
+        var ordinary = _runtime.Content.Techniques.First(t => t.Rarity == Rarity.Ordinary && (t.Domain is TechniqueDomain.Fist or TechniqueDomain.Palm or TechniqueDomain.InternalCultivation));
         player.Knowledge.Add($"Vous avez aperçu le titre d'un manuel : {ordinary.Name}.");
         AddStory($"Vous trouvez la trace du manuel « {ordinary.Name} ». Pour l'instant, vous n'en connaissez que l'existence ; il faudra obtenir l'accès, le lire et le comprendre avant de pouvoir l'apprendre.");
         RefreshAll();
