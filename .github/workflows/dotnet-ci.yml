@@ -1,0 +1,28 @@
+name: Murim .NET CI
+
+on:
+  push:
+    branches:
+      - main
+      - feat/living-murim-foundation
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore simulation
+        run: dotnet restore src/Murim.SmokeTest/Murim.SmokeTest.csproj
+      - name: Build simulation
+        run: dotnet build src/Murim.SmokeTest/Murim.SmokeTest.csproj --configuration Release --no-restore
+      - name: Run deterministic smoke test
+        run: dotnet run --project src/Murim.SmokeTest/Murim.SmokeTest.csproj --configuration Release --no-build
