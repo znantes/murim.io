@@ -39,7 +39,7 @@ public sealed class EventCausalitySystem
     public IReadOnlyList<(WorldEvent Event, int Depth, double CumulativeStrength)> TraceRootCauses(WorldState world, Guid eventId, int maxDepth = 6)
     {
         maxDepth = Math.Clamp(maxDepth, 1, 20);
-        var output = new List<(WorldEvent, int, double)>();
+        var output = new List<(WorldEvent Event, int Depth, double CumulativeStrength)>();
         var visited = new HashSet<Guid> { eventId };
         var queue = new Queue<(Guid EventId, int Depth, double Strength)>();
         queue.Enqueue((eventId, 0, 1));
@@ -63,17 +63,17 @@ public sealed class EventCausalitySystem
 
     public CausalMechanism SuggestMechanism(WorldEvent cause, WorldEvent effect)
     {
-        if (cause.Type is WorldEventType.Drought or WorldEventType.Flood or WorldEventType.Fire && effect.Type is WorldEventType.Shortage or WorldEventType.Famine)
+        if ((cause.Type is WorldEventType.Drought or WorldEventType.Flood or WorldEventType.Fire) && (effect.Type is WorldEventType.Shortage or WorldEventType.Famine))
             return CausalMechanism.ResourceShortage;
         if (cause.Type == WorldEventType.Death && effect.Type == WorldEventType.Succession)
             return CausalMechanism.SuccessionVacuum;
-        if (cause.Type is WorldEventType.BanditAttack or WorldEventType.Raid && effect.Type is WorldEventType.Migration or WorldEventType.Shortage)
+        if ((cause.Type is WorldEventType.BanditAttack or WorldEventType.Raid) && (effect.Type is WorldEventType.Migration or WorldEventType.Shortage))
             return CausalMechanism.InfrastructureDamage;
-        if (cause.Type == WorldEventType.RumorWave && effect.Type is WorldEventType.Scandal or WorldEventType.Feud)
+        if (cause.Type == WorldEventType.RumorWave && (effect.Type is WorldEventType.Scandal or WorldEventType.Feud))
             return CausalMechanism.RumorEscalation;
-        if (cause.Type == WorldEventType.ImperialEdict && effect.Type is WorldEventType.TaxChange or WorldEventType.Arrest or WorldEventType.Migration)
+        if (cause.Type == WorldEventType.ImperialEdict && (effect.Type is WorldEventType.TaxChange or WorldEventType.Arrest or WorldEventType.Migration))
             return CausalMechanism.LegalPrecedent;
-        if (cause.FactionIds.Intersect(effect.FactionIds).Any() && effect.Type is WorldEventType.Feud or WorldEventType.Coup or WorldEventType.SectSplit)
+        if (cause.FactionIds.Intersect(effect.FactionIds).Any() && (effect.Type is WorldEventType.Feud or WorldEventType.Coup or WorldEventType.SectSplit))
             return CausalMechanism.FactionConflict;
         return CausalMechanism.Unknown;
     }
