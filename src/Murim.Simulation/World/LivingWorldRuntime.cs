@@ -39,7 +39,6 @@ public sealed class LivingWorldRuntime
             SocialMemory.AdvanceDay(World); EconomyEcology.AdvanceDay(World); Obligations.Advance(World, BaseEngine.Relationships);
             AdvanceCareerPromotions(); AdvanceTournamentCalendar();
         }
-        // Même une action de quelques heures peut franchir une échéance exacte.
         Obligations.Advance(World, BaseEngine.Relationships);
     }
 
@@ -89,7 +88,7 @@ public sealed class LivingWorldRuntime
     {
         foreach (var tournament in World.Tournaments.Values.Where(t => t.Phase is not (TournamentPhase.Completed or TournamentPhase.Cancelled)).ToArray())
         {
-            if (World.Clock.Day >= tournament.StartDay && tournament.Phase < TournamentPhase.RegionalQualifiers) DragonPhoenix.RunQualifiers(World, tournament);
+            if (World.Clock.Day >= tournament.StartDay && (int)tournament.Phase < (int)TournamentPhase.RegionalQualifiers) DragonPhoenix.RunQualifiers(World, tournament);
             if (World.Clock.Day >= tournament.EndDay && tournament.Phase != TournamentPhase.Completed) DragonPhoenix.Resolve(World, tournament);
         }
     }
