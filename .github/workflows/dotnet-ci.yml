@@ -12,7 +12,7 @@ on:
 jobs:
   build-and-smoke-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,3 +26,7 @@ jobs:
         run: dotnet build src/Murim.SmokeTest/Murim.SmokeTest.csproj --configuration Release --no-restore
       - name: Run deterministic smoke test
         run: dotnet run --project src/Murim.SmokeTest/Murim.SmokeTest.csproj --configuration Release --no-build
+      - name: Restore Godot client
+        run: dotnet restore client/MurimGame/MurimGame.csproj
+      - name: Build Godot client
+        run: dotnet build client/MurimGame/MurimGame.csproj --configuration Release --no-restore
