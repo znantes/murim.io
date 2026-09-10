@@ -21,8 +21,18 @@ window/stretch/mode="canvas_items"
 
 project/assembly_name="MurimGame"
 
+[debug]
+
+file_logging/enable_file_logging=true
+file_logging/enable_file_logging.pc=true
+file_logging/log_path="user://logs/godot.log"
+file_logging/max_log_files=5
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+gl_compatibility/driver.windows="opengl3_angle"
+gl_compatibility/fallback_to_native=true
+gl_compatibility/fallback_to_angle=true
 environment/defaults/default_clear_color=Color(0.035, 0.043, 0.055, 1)
