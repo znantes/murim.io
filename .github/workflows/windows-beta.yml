@@ -41,27 +41,98 @@ jobs:
             cp -a /tmp/godot-export-templates/. "$HOME/.local/share/godot/export_templates/4.7.2.stable.mono/"
           fi
           ln -sfn 4.7.2.stable.mono "$HOME/.local/share/godot/export_templates/4.7.2.stable"
-          ls -lah "$HOME/.local/share/godot/export_templates/4.7.2.stable.mono" | head -30
 
       - name: Import Godot project
         run: /tmp/godot/Godot_v4.7.2-stable_mono_linux_x86_64/Godot_v4.7.2-stable_mono_linux.x86_64 --headless --editor --path client/MurimGame --quit-after 3
 
       - name: Export Windows x86_64 beta
         run: |
+          rm -rf client/MurimGame/build/windows
           mkdir -p client/MurimGame/build/windows
           /tmp/godot/Godot_v4.7.2-stable_mono_linux_x86_64/Godot_v4.7.2-stable_mono_linux.x86_64 --headless --path client/MurimGame --export-release "Windows Desktop" build/windows/Murim-Beta.exe
           test -f client/MurimGame/build/windows/Murim-Beta.exe
-          find client/MurimGame/build/windows -maxdepth 2 -type f -printf '%P\n' | sort
+          test -f client/MurimGame/build/windows/Murim-Beta.pck
+          find client/MurimGame/build/windows -maxdepth 1 -type d -name 'data_*' | grep -q . || (echo "Missing required .NET data directory" && exit 1)
+          echo "=== Exported runtime ==="
+          du -ah client/MurimGame/build/windows | sort -h | tail -30
 
-      - name: Package beta
+      - name: Build portable folder
         run: |
-          cd client/MurimGame/build/windows
-          zip -r ../../../../Murim-Beta-Windows.zip .
+          rm -rf package
+          mkdir -p package/Murim-Beta
+          cp -a client/MurimGame/build/windows/. package/Murim-Beta/
+          cat > package/Murim-Beta/README-LANCEMENT.txt <<'EOF'
+          MURIM — UNE VIE PARMI DES MILLIERS — BETA 0.1.2
+
+          1. Gardez tous les fichiers et dossiers contenus ici ensemble.
+          2. Lancez Murim-Beta.exe.
+          3. Ne déplacez PAS l'EXE seul : Murim-Beta.pck et le dossier data_* sont indispensables.
+          4. Le premier démarrage construit un monde de 10 000 PNJ et peut demander un peu de calcul CPU.
+          5. En cas de problème, Godot écrit un journal dans le dossier utilisateur AppData/Roaming/Godot/app_userdata/.../logs/.
+
+          Cette bêta utilise un rendu Windows ANGLE/Direct3D 11 avec fallback de compatibilité.
+          EOF
+          printf '0.1.2-beta\n' > package/Murim-Beta/VERSION.txt
+          cd package
+          zip -r ../Murim-Beta-Windows-0.1.2.zip Murim-Beta
 
       - name: Upload Windows beta
         uses: actions/upload-artifact@v4
         with:
           name: murim-beta-windows
-          path: Murim-Beta-Windows.zip
+          path: Murim-Beta-Windows-0.1.2.zip
           if-no-files-found: error
           retention-days: 30
+
+  smoke-test-exported-windows-exe:
+    needs: export-windows-beta
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Download portable beta
+        uses: actions/download-artifact@v4
+        with:
+          name: murim-beta-windows
+          path: artifact
+
+      - name: Extract portable beta
+        shell: pwsh
+        run: |
+          Expand-Archive -Path artifact/Murim-Beta-Windows-0.1.2.zip -DestinationPath portable
+          if (-not (Test-Path portable/Murim-Beta/Murim-Beta.exe)) { throw 'Murim-Beta.exe missing' }
+          if (-not (Test-Path portable/Murim-Beta/Murim-Beta.pck)) { throw 'Murim-Beta.pck missing' }
+          $data = Get-ChildItem portable/Murim-Beta -Directory -Filter 'data_*'
+          if (-not $data) { throw 'Required Godot .NET data directory missing' }
+          Get-ChildItem portable/Murim-Beta -Recurse | Select-Object FullName,Length
+
+      - name: Launch exported Windows executable
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'portable/Murim-Beta/Murim-Beta.exe').Path
+          $proc = Start-Process -FilePath $exe -ArgumentList '--headless' -PassThru
+          $deadline = (Get-Date).AddSeconds(90)
+          $started = $false
+          while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 2
+            $proc.Refresh()
+            if ($proc.HasExited) {
+              $logs = Get-ChildItem "$env:APPDATA/Godot/app_userdata" -Filter godot.log -Recurse -ErrorAction SilentlyContinue
+              foreach ($log in $logs) { Write-Host "=== $($log.FullName) ==="; Get-Content $log.FullName -ErrorAction SilentlyContinue }
+              throw "Windows beta exited during startup with code $($proc.ExitCode)"
+            }
+            $logs = Get-ChildItem "$env:APPDATA/Godot/app_userdata" -Filter godot.log -Recurse -ErrorAction SilentlyContinue
+            foreach ($log in $logs) {
+              if (Select-String -Path $log.FullName -Pattern 'Murim startup completed' -Quiet -ErrorAction SilentlyContinue) {
+                $started = $true
+                Write-Host "Startup marker found in $($log.FullName)"
+                break
+              }
+            }
+            if ($started) { break }
+          }
+          if (-not $started) {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            throw 'Windows beta did not reach completed startup within 90 seconds'
+          }
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          Write-Host 'Exported Windows beta started successfully.'
