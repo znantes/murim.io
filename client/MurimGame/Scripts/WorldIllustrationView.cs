@@ -55,7 +55,8 @@ public partial class WorldIllustrationView : PanelContainer
         image.Texture = null;
         image.Visible = false;
         fallback.Visible = true;
-        fallback.Text = $"ILLUSTRATION À PRODUIRE\n\n{profile.Name}\n{profile.SceneDescription}\n\nIdentité visuelle #{Math.Abs(profile.VisualSeed):X8}";
+        var visualSeed = unchecked((uint)profile.VisualSeed);
+        fallback.Text = $"ILLUSTRATION À PRODUIRE\n\n{profile.Name}\n{profile.SceneDescription}\n\nIdentité visuelle #{visualSeed:X8}";
         TooltipText = $"Déposer une image dans :\n{profile.AssetDirectory}/default.webp";
         return false;
     }
