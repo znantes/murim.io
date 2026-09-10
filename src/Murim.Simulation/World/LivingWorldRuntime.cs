@@ -42,24 +42,30 @@ public sealed class LivingWorldRuntime
         Obligations.Advance(World, BaseEngine.Relationships);
     }
 
-    public void TrainPlayerForDays(int days, double dailyHours = 5, double intensity = .55)
+    public string TrainPlayerForDays(int days, double dailyHours = 5, double intensity = .55)
     {
         var player = World.PlayerNpc ?? throw new InvalidOperationException("Aucun PNJ joueur.");
         days = Math.Clamp(days, 1, 3650);
+        var startingAge = player.AgeYears(World.Clock);
         for (var i = 0; i < days && player.IsAlive; i++)
         {
-            Martial.Train(player, dailyHours, intensity, .25); player.Physiology.Spirit.DecisionFatigue = Math.Clamp(player.Physiology.Spirit.DecisionFatigue + 1.2, 0, 100);
+            ApplyAgeAppropriateTraining(player, dailyHours, intensity);
             AdvanceMinutes(1440);
         }
+        return TrainingSummary(startingAge, days);
     }
 
     public void PracticeTechniqueForDays(int techniqueId, int days, double dailyHours = 4)
     {
         var player = World.PlayerNpc ?? throw new InvalidOperationException("Aucun PNJ joueur.");
         var technique = Content.Techniques.FirstOrDefault(t => t.Id == techniqueId) ?? throw new ArgumentException("Technique inconnue.", nameof(techniqueId));
+        if (player.AgeYears(World.Clock) < 10) throw new InvalidOperationException("Le personnage est trop jeune pour pratiquer volontairement une technique structurée.");
         for (var i = 0; i < Math.Clamp(days, 1, 3650) && player.IsAlive; i++)
         {
-            Techniques.Practice(player, technique, dailyHours, .2, .35, World.Clock.Day, Injuries); AdvanceMinutes(1440);
+            var age = player.AgeYears(World.Clock);
+            var safeHours = age < 13 ? Math.Min(2, dailyHours) : dailyHours;
+            Techniques.Practice(player, technique, safeHours, age < 13 ? .45 : .2, age < 13 ? .55 : .35, World.Clock.Day, Injuries);
+            AdvanceMinutes(1440);
         }
     }
 
@@ -72,6 +78,50 @@ public sealed class LivingWorldRuntime
         lines.Add($"Rang martial connu : {player.Martial.DisplayLabel}");
         return lines;
     }
+
+    private void ApplyAgeAppropriateTraining(Npc player, double dailyHours, double intensity)
+    {
+        var age = player.AgeYears(World.Clock);
+        if (age < 3)
+        {
+            player.Skills["observation"] = Math.Clamp(player.Skills.GetValueOrDefault("observation") + .015, 0, 100);
+            player.Skills["mobility"] = Math.Clamp(player.Skills.GetValueOrDefault("mobility") + .01, 0, 100);
+            player.Skills["language"] = Math.Clamp(player.Skills.GetValueOrDefault("language") + .012, 0, 100);
+            return;
+        }
+        if (age < 7)
+        {
+            player.Skills["mobility"] = Math.Clamp(player.Skills.GetValueOrDefault("mobility") + .025, 0, 100);
+            player.Physiology.Physical.Coordination = Math.Clamp(player.Physiology.Physical.Coordination + .012, 1, 100);
+            player.Physiology.Endurance.WorkCapacity = Math.Clamp(player.Physiology.Endurance.WorkCapacity + .006, 1, 100);
+            return;
+        }
+        if (age < 10)
+        {
+            player.Skills["mobility"] = Math.Clamp(player.Skills.GetValueOrDefault("mobility") + .035, 0, 100);
+            player.Physiology.Physical.Coordination = Math.Clamp(player.Physiology.Physical.Coordination + .018, 1, 100);
+            player.Physiology.Endurance.AerobicEndurance = Math.Clamp(player.Physiology.Endurance.AerobicEndurance + .01, 1, 100);
+            player.Body.Fatigue = Math.Clamp(player.Body.Fatigue + 1.3, 0, 100);
+            return;
+        }
+        if (age < 13)
+        {
+            Martial.Train(player, Math.Min(2, dailyHours), Math.Min(.32, intensity), .5);
+            player.Body.Fatigue = Math.Clamp(player.Body.Fatigue + .4, 0, 100);
+            return;
+        }
+        Martial.Train(player, dailyHours, intensity, .25);
+        player.Physiology.Spirit.DecisionFatigue = Math.Clamp(player.Physiology.Spirit.DecisionFatigue + 1.2, 0, 100);
+    }
+
+    private static string TrainingSummary(int age, int days) => age switch
+    {
+        < 3 => $"{days} jour(s) passent. À cet âge, vous observez, grandissez et développez surtout langage et mobilité ; aucun entraînement martial volontaire n'est possible.",
+        < 7 => $"{days} jour(s) passent en jeux, imitation et coordination adaptée à l'enfance.",
+        < 10 => $"{days} jour(s) passent en préparation physique légère, sans art martial dangereux.",
+        < 13 => $"{days} jour(s) passent en fondations encadrées : posture, respiration, mobilité et discipline.",
+        _ => $"Vous vous entraînez pendant {days} jour(s). Le monde a avancé d'autant."
+    };
 
     private void AdvanceCareerPromotions()
     {
@@ -105,9 +155,7 @@ public sealed class PlayerCommandFacade
         if (string.IsNullOrWhiteSpace(command)) return "Aucune action saisie.";
         if (command is "état" or "etat" or "statut") return string.Join(Environment.NewLine, runtime.PlayerConditionLines());
         if (TryDuration(command, "s'entraîner", out var trainingDays) || TryDuration(command, "entrainer", out trainingDays) || TryDuration(command, "entraine", out trainingDays))
-        {
-            runtime.TrainPlayerForDays(trainingDays); return $"Vous vous entraînez pendant {trainingDays} jour(s). Le monde a avancé d'autant.";
-        }
+            return runtime.TrainPlayerForDays(trainingDays);
         if (TryDuration(command, "attendre", out var waitDays)) { runtime.AdvanceMinutes(waitDays * 1440); return $"{waitDays} jour(s) passent."; }
         return "Commande non reconnue. Les actions disponibles dépendent du lieu, de l'âge et de ce que votre personnage connaît.";
     }
