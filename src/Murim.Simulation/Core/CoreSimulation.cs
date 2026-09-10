@@ -35,7 +35,7 @@ public sealed class PersonalityProfile
 
 public sealed class BodyState
 {
-    // Health reste une valeur systémique interne. L'interface joueur doit privilégier les blessures localisées.
+    // Valeurs internes de simulation. L'UI privilégie les états localisés et observables.
     public double Health { get; set; } = 100;
     public double Stamina { get; set; } = 100;
     public double Qi { get; set; }
@@ -46,17 +46,7 @@ public sealed class BodyState
     public bool IsAlive => Health > 0;
 }
 
-public sealed record NpcIdentity(
-    Guid Id,
-    string GivenName,
-    string FamilyName,
-    Sex Sex,
-    long BirthDay,
-    Guid BirthPlaceId,
-    string Culture,
-    string SocialOrigin,
-    bool IsMonsterBorn = false,
-    string? SpeciesCode = null)
+public sealed record NpcIdentity(Guid Id, string GivenName, string FamilyName, Sex Sex, long BirthDay, Guid BirthPlaceId, string Culture, string SocialOrigin, bool IsMonsterBorn = false, string? SpeciesCode = null)
 {
     public string DisplayName => string.IsNullOrWhiteSpace(FamilyName) ? GivenName : $"{FamilyName} {GivenName}";
 }
@@ -91,7 +81,7 @@ public sealed class Npc
     public bool IsAlive => Body.IsAlive;
 
     public int AgeYears(WorldClock clock) => (int)Math.Max(0, (clock.Day - Identity.BirthDay) / 365);
-    public LifeStage LifeStage(WorldClock clock)
+    public LifeStage GetLifeStage(WorldClock clock)
     {
         var age = AgeYears(clock);
         return age < 3 ? LifeStage.Infant : age < 10 ? LifeStage.Child : age < 16 ? LifeStage.Adolescent : age < 60 ? LifeStage.Adult : LifeStage.Elder;
@@ -138,38 +128,30 @@ public sealed class BirthSystem
 {
     private readonly Random random;
     private readonly PhysiologyGenerator physiology;
-    public double MonsterBirthProbability { get; init; } = 0.0015;
-
-    private static readonly string[] GivenFemale = ["Mira", "Seol", "Ara", "Hae", "Rin", "Yeon", "Sora", "Nari", "Yuna", "Minseo"];
-    private static readonly string[] GivenMale = ["Jiwon", "Hyeon", "Min", "Ryu", "Dojin", "Gyeom", "Tae", "Jun", "Seok", "Won"];
-    private static readonly string[] CommonFamilies = ["Han", "Seo", "Baek", "Yun", "Kang", "Jin", "Choi", "Moon", "Im", "Jang", "Park", "Heo"];
+    public double MonsterBirthProbability { get; init; } = .0015;
+    private static readonly string[] GivenFemale = ["Mira","Seol","Ara","Hae","Rin","Yeon","Sora","Nari","Yuna","Minseo"];
+    private static readonly string[] GivenMale = ["Jiwon","Hyeon","Min","Ryu","Dojin","Gyeom","Tae","Jun","Seok","Won"];
+    private static readonly string[] CommonFamilies = ["Han","Seo","Baek","Yun","Kang","Jin","Choi","Moon","Im","Jang","Park","Heo"];
 
     public BirthSystem(int seed) { random = new Random(seed); physiology = new PhysiologyGenerator(seed + 1701); }
 
     public Npc CreateBirth(WorldState world, IReadOnlyList<MonsterDefinition> monsters)
     {
         if (world.Locations.Count == 0) throw new InvalidOperationException("A location is required before births can occur.");
-        var place = world.Locations.Values.ElementAt(random.Next(world.Locations.Count));
-        var roll = random.NextDouble();
-        var sex = roll < 0.4975 ? Sex.Female : roll < 0.995 ? Sex.Male : Sex.Intersex;
+        var place = world.Locations.Values.ElementAt(random.Next(world.Locations.Count)); var roll = random.NextDouble();
+        var sex = roll < .4975 ? Sex.Female : roll < .995 ? Sex.Male : Sex.Intersex;
         var monsterBorn = random.NextDouble() < MonsterBirthProbability && monsters.Count > 0;
         var lowStageMonsters = monsterBorn ? monsters.Where(m => m.EvolutionStageIndex <= 1).ToArray() : Array.Empty<MonsterDefinition>();
         var species = monsterBorn && lowStageMonsters.Length > 0 ? lowStageMonsters[random.Next(lowStageMonsters.Length)] : null;
-
         Household? household = null;
-        if (!monsterBorn && world.Households.Count > 0 && random.NextDouble() < 0.86) household = WeightedHousehold(world.Households.Values.ToArray());
-
+        if (!monsterBorn && world.Households.Count > 0 && random.NextDouble() < .86) household = WeightedHousehold(world.Households.Values.ToArray());
         var family = monsterBorn ? string.Empty : household?.FamilyName ?? CommonFamilies[random.Next(CommonFamilies.Length)];
         var given = sex == Sex.Female ? GivenFemale[random.Next(GivenFemale.Length)] : GivenMale[random.Next(GivenMale.Length)];
-        var origin = household is null ? (monsterBorn ? "créature née dans le monde sauvage" : "foyer ordinaire") :
-            household.FactionId is not null && household.Prestige > 75 ? "lignée prestigieuse liée à une faction" : household.Wealth > 70 ? "famille aisée" : household.Wealth < 20 ? "famille pauvre" : "famille moyenne";
-
+        var origin = household is null ? (monsterBorn ? "créature née dans le monde sauvage" : "foyer ordinaire") : household.FactionId is not null && household.Prestige > 75 ? "lignée prestigieuse liée à une faction" : household.Wealth > 70 ? "famille aisée" : household.Wealth < 20 ? "famille pauvre" : "famille moyenne";
         var identity = new NpcIdentity(Guid.NewGuid(), given, family, sex, world.Clock.Day, household?.HomeLocationId ?? place.Id, "Murim central", origin, monsterBorn, species?.Code);
         var npc = new Npc { Identity = identity, CurrentLocationId = identity.BirthPlaceId, HouseholdId = household?.Id, PrimaryFactionId = household?.FactionId, Personality = RandomPersonality() };
-        physiology.Initialize(npc);
-        npc.Body.Qi = monsterBorn ? 2 + random.NextDouble() * 8 : random.NextDouble() * 2;
-        npc.Skills["language"] = 0; npc.Skills["mobility"] = 0;
-        npc.Languages["common"] = new LanguageCompetency { LanguageCode = "common", DialectCode = "central", Listening = 0, Speaking = 0, Reading = 0, Writing = 0 };
+        physiology.Initialize(npc); npc.Body.Qi = monsterBorn ? 2 + random.NextDouble() * 8 : random.NextDouble() * 2; npc.Skills["language"] = 0; npc.Skills["mobility"] = 0;
+        npc.Languages["common"] = new LanguageCompetency { LanguageCode = "common", DialectCode = "central" };
         world.Npcs[npc.Id] = npc; household?.MemberIds.Add(npc.Id); return npc;
     }
 
