@@ -65,7 +65,9 @@ public static class DeepWorldSmokeChecks
         Check(conduct.OffenseRisk > .3, "Social codes must make informality risky in ceremonial settings.");
 
         var seasons = new SeasonSystem();
-        var winter = seasons.ForDay(new FixedClock(350));
+        var winterClock = new WorldClock();
+        winterClock.AdvanceMinutes(349 * 1440);
+        var winter = seasons.ForDay(winterClock);
         Check(winter.Season == Season.Winter && winter.TravelDifficulty > .3, "Winter must affect travel.");
 
         var visualAge = new LocationVisualAgingSystem();
@@ -111,11 +113,6 @@ public static class DeepWorldSmokeChecks
         var environmental = new EnvironmentalTrainingSystem();
         environmental.Practice(holder, techA, TerrainCondition.Boat, 500);
         Check(environmental.ContextBonus(holder, techA, TerrainCondition.Boat) > environmental.ContextBonus(holder, techA, TerrainCondition.Snow), "Environmental training must stay primarily context-specific.");
-    }
-
-    private sealed class FixedClock : WorldClock
-    {
-        public FixedClock(int day) => AdvanceMinutes((day - 1) * 1440);
     }
 
     private static void Check(bool condition, string message)
