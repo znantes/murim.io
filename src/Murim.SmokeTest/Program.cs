@@ -82,6 +82,7 @@ Require(!string.IsNullOrWhiteSpace(generation.CanonicalName), "Martial generatio
 var regionalGenerationName = generations.NameForRegion(generation, "Plaine centrale", world.Seed);
 Require(!string.IsNullOrWhiteSpace(regionalGenerationName), "Martial generation must support regional historical names.");
 
+AppearanceSmokeChecks.Run(world);
 ContentValidator.Validate(content);
 WorldIntegrity.NormalizeAndValidate(world);
 
