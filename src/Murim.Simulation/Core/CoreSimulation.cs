@@ -35,6 +35,7 @@ public sealed class PersonalityProfile
 
 public sealed class BodyState
 {
+    // Health reste une valeur systémique interne. L'interface joueur doit privilégier les blessures localisées.
     public double Health { get; set; } = 100;
     public double Stamina { get; set; } = 100;
     public double Qi { get; set; }
@@ -68,12 +69,21 @@ public sealed class Npc
     public Guid? HouseholdId { get; set; }
     public Guid? PrimaryFactionId { get; set; }
     public BodyState Body { get; } = new();
+    public NpcPhysiology Physiology { get; } = new();
+    public MartialProgressionState Martial { get; } = new();
     public PersonalityProfile Personality { get; init; } = new();
     public Dictionary<string, double> Skills { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<int, TechniqueProgress> Techniques { get; } = new();
+    public List<InjuryRecord> Injuries { get; } = new();
     public Dictionary<Guid, RelationshipState> Relationships { get; } = new();
     public Dictionary<Guid, RumorBelief> RumorBeliefs { get; } = new();
     public HashSet<string> Knowledge { get; } = new(StringComparer.OrdinalIgnoreCase);
     public List<CareerRecord> CareerHistory { get; } = new();
+    public Dictionary<string, CareerStanding> CareerStandings { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, LanguageCompetency> Languages { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public List<AliasIdentity> Aliases { get; } = new();
+    public Dictionary<Guid, GriefState> Grief { get; } = new();
+    public List<PerceivedCondition> PerceivedConditions { get; } = new();
     public List<Guid> AffiliationIds { get; } = new();
     public List<Guid> ParentIds { get; } = new();
     public List<Guid> ChildIds { get; } = new();
@@ -109,6 +119,17 @@ public sealed class WorldState
     public Dictionary<Guid, FactionDefinition> Factions { get; } = new();
     public List<WorldEvent> Events { get; } = new();
     public Dictionary<Guid, Rumor> Rumors { get; } = new();
+    public Dictionary<Guid, Obligation> Obligations { get; } = new();
+    public Dictionary<Guid, NpcGoal> Goals { get; } = new();
+    public Dictionary<Guid, MoralDebt> MoralDebts { get; } = new();
+    public Dictionary<Guid, FactionCultureState> FactionCultures { get; } = new();
+    public Dictionary<Guid, HistoricalRecord> HistoricalRecords { get; } = new();
+    public List<ManuscriptRecord> Manuscripts { get; } = new();
+    public List<TechniqueVariant> TechniqueVariants { get; } = new();
+    public Dictionary<int, ArtifactLegacy> ArtifactLegacies { get; } = new();
+    public Dictionary<Guid, RegionalEconomyState> RegionalEconomies { get; } = new();
+    public Dictionary<string, SpeciesPopulationState> Ecology { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<Guid, TournamentInstance> Tournaments { get; } = new();
     public Guid? PlayerNpcId { get; set; }
     public Npc? PlayerNpc => PlayerNpcId is Guid id && Npcs.TryGetValue(id, out var npc) ? npc : null;
 }
@@ -116,13 +137,14 @@ public sealed class WorldState
 public sealed class BirthSystem
 {
     private readonly Random random;
+    private readonly PhysiologyGenerator physiology;
     public double MonsterBirthProbability { get; init; } = 0.0015;
 
     private static readonly string[] GivenFemale = ["Mira", "Seol", "Ara", "Hae", "Rin", "Yeon", "Sora", "Nari", "Yuna", "Minseo"];
     private static readonly string[] GivenMale = ["Jiwon", "Hyeon", "Min", "Ryu", "Dojin", "Gyeom", "Tae", "Jun", "Seok", "Won"];
     private static readonly string[] CommonFamilies = ["Han", "Seo", "Baek", "Yun", "Kang", "Jin", "Choi", "Moon", "Im", "Jang", "Park", "Heo"];
 
-    public BirthSystem(int seed) => random = new Random(seed);
+    public BirthSystem(int seed) { random = new Random(seed); physiology = new PhysiologyGenerator(seed + 1701); }
 
     public Npc CreateBirth(WorldState world, IReadOnlyList<MonsterDefinition> monsters)
     {
@@ -135,48 +157,32 @@ public sealed class BirthSystem
         var species = monsterBorn && lowStageMonsters.Length > 0 ? lowStageMonsters[random.Next(lowStageMonsters.Length)] : null;
 
         Household? household = null;
-        if (!monsterBorn && world.Households.Count > 0 && random.NextDouble() < 0.86)
-            household = WeightedHousehold(world.Households.Values.ToArray());
+        if (!monsterBorn && world.Households.Count > 0 && random.NextDouble() < 0.86) household = WeightedHousehold(world.Households.Values.ToArray());
 
         var family = monsterBorn ? string.Empty : household?.FamilyName ?? CommonFamilies[random.Next(CommonFamilies.Length)];
         var given = sex == Sex.Female ? GivenFemale[random.Next(GivenFemale.Length)] : GivenMale[random.Next(GivenMale.Length)];
         var origin = household is null ? (monsterBorn ? "créature née dans le monde sauvage" : "foyer ordinaire") :
-            household.FactionId is not null && household.Prestige > 75 ? "lignée prestigieuse liée à une faction" :
-            household.Wealth > 70 ? "famille aisée" : household.Wealth < 20 ? "famille pauvre" : "famille moyenne";
+            household.FactionId is not null && household.Prestige > 75 ? "lignée prestigieuse liée à une faction" : household.Wealth > 70 ? "famille aisée" : household.Wealth < 20 ? "famille pauvre" : "famille moyenne";
 
-        var identity = new NpcIdentity(Guid.NewGuid(), given, family, sex, world.Clock.Day, household?.HomeLocationId ?? place.Id,
-            "Murim central", origin, monsterBorn, species?.Code);
-        var npc = new Npc
-        {
-            Identity = identity,
-            CurrentLocationId = identity.BirthPlaceId,
-            HouseholdId = household?.Id,
-            PrimaryFactionId = household?.FactionId,
-            Personality = RandomPersonality()
-        };
+        var identity = new NpcIdentity(Guid.NewGuid(), given, family, sex, world.Clock.Day, household?.HomeLocationId ?? place.Id, "Murim central", origin, monsterBorn, species?.Code);
+        var npc = new Npc { Identity = identity, CurrentLocationId = identity.BirthPlaceId, HouseholdId = household?.Id, PrimaryFactionId = household?.FactionId, Personality = RandomPersonality() };
+        physiology.Initialize(npc);
         npc.Body.Qi = monsterBorn ? 2 + random.NextDouble() * 8 : random.NextDouble() * 2;
-        npc.Skills["language"] = 0;
-        npc.Skills["mobility"] = 0;
-        world.Npcs[npc.Id] = npc;
-        household?.MemberIds.Add(npc.Id);
-        return npc;
+        npc.Skills["language"] = 0; npc.Skills["mobility"] = 0;
+        npc.Languages["common"] = new LanguageCompetency { LanguageCode = "common", DialectCode = "central", Listening = 0, Speaking = 0, Reading = 0, Writing = 0 };
+        world.Npcs[npc.Id] = npc; household?.MemberIds.Add(npc.Id); return npc;
     }
 
     private Household WeightedHousehold(Household[] households)
     {
-        var total = households.Sum(h => Math.Max(1, 120 - h.Prestige));
-        var roll = random.NextDouble() * total;
-        foreach (var h in households)
-        {
-            roll -= Math.Max(1, 120 - h.Prestige);
-            if (roll <= 0) return h;
-        }
+        var total = households.Sum(h => Math.Max(1, 120 - h.Prestige)); var roll = random.NextDouble() * total;
+        foreach (var h in households) { roll -= Math.Max(1, 120 - h.Prestige); if (roll <= 0) return h; }
         return households[^1];
     }
 
     private PersonalityProfile RandomPersonality() => new()
     {
-        Curiosity = random.NextDouble(), Ambition = random.NextDouble(), Empathy = random.NextDouble(), Loyalty = random.NextDouble(),
-        RiskTolerance = random.NextDouble(), Talkativeness = random.NextDouble(), Gullibility = random.NextDouble(), Anxiety = random.NextDouble(), Patience = random.NextDouble()
+        Curiosity = random.NextDouble(), Ambition = random.NextDouble(), Empathy = random.NextDouble(), Loyalty = random.NextDouble(), RiskTolerance = random.NextDouble(),
+        Talkativeness = random.NextDouble(), Gullibility = random.NextDouble(), Anxiety = random.NextDouble(), Patience = random.NextDouble()
     };
 }
