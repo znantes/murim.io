@@ -46,8 +46,24 @@ public sealed record FacialMark(string Code, string Description, double X, doubl
 
 public sealed class PortraitGeneticsSystem
 {
-    private readonly Random random;
-    public PortraitGeneticsSystem(int seed) => random = new Random(seed);
+    private readonly Dictionary<Guid, PortraitGenome> genomes = new();
+    private readonly Dictionary<Guid, PortraitAppearanceState> appearances = new();
+
+    public PortraitGenome GetOrCreate(Npc npc)
+    {
+        if (genomes.TryGetValue(npc.Id, out var existing)) return existing;
+        var created = CreateFounder(npc.Id, npc.HouseholdId);
+        genomes[npc.Id] = created;
+        return created;
+    }
+
+    public PortraitAppearanceState AppearanceFor(Npc npc)
+    {
+        if (appearances.TryGetValue(npc.Id, out var existing)) return existing;
+        var created = new PortraitAppearanceState();
+        appearances[npc.Id] = created;
+        return created;
+    }
 
     public PortraitGenome CreateFounder(Guid npcId, Guid? householdId = null)
     {
@@ -60,6 +76,13 @@ public sealed class PortraitGeneticsSystem
             HairPigment = Bell(rng), EyePigment = Bell(rng), HairWave = Bell(rng), HairDensity = Bell(rng), FacialHairPotential = Bell(rng),
             FrecklePotential = Bell(rng), ScarTendency = Bell(rng), HairStyleSeed = rng.Next()
         };
+    }
+
+    public PortraitGenome Inherit(Npc child, Npc parentA, Npc parentB)
+    {
+        var created = Inherit(GetOrCreate(parentA), GetOrCreate(parentB), child.Id);
+        genomes[child.Id] = created;
+        return created;
     }
 
     public PortraitGenome Inherit(PortraitGenome a, PortraitGenome b, Guid childId)
@@ -88,8 +111,8 @@ public sealed class PortraitGeneticsSystem
     public void UpdateVisibleAge(Npc npc, WorldClock clock)
     {
         var age = npc.AgeYears(clock);
-        var appearance = npc.Appearance;
-        appearance.ApparentAge = Math.Max(0, age + npc.Body.Fatigue * .025 + appearance.SunExposure * .04 - npc.Physiology.Physical.RecoveryRate * .015);
+        var appearance = AppearanceFor(npc);
+        appearance.ApparentAge = Math.Max(0, age + npc.Body.Fatigue * .025 + appearance.SunExposure * .04 - npc.Physiology.Endurance.RecoveryEfficiency * .015);
         appearance.WrinkleAmount = Math.Clamp((appearance.ApparentAge - 28) / 55.0, 0, 1);
         appearance.GreyHairAmount = Math.Clamp((appearance.ApparentAge - 38) / 48.0, 0, 1);
         appearance.Pallor = Math.Clamp((70 - npc.Body.Health) / 70.0, 0, .8);
@@ -98,14 +121,29 @@ public sealed class PortraitGeneticsSystem
 
     public void SyncPermanentMarks(Npc npc)
     {
+        var appearance = AppearanceFor(npc);
         foreach (var injury in npc.Injuries.Where(i => i.Permanent && i.Region is BodyRegion.Face or BodyRegion.Head))
         {
             var code = $"injury:{injury.Id}";
-            if (npc.Appearance.Marks.Any(m => m.Code == code)) continue;
-            var seed = HashSeed(injury.Id, null);
-            var rng = new Random(seed);
-            npc.Appearance.Marks.Add(new FacialMark(code, injury.DisplayText, .2 + rng.NextDouble() * .6, .18 + rng.NextDouble() * .62, .03 + rng.NextDouble() * .10, true));
+            if (appearance.Marks.Any(m => m.Code == code)) continue;
+            var rng = new Random(HashSeed(injury.Id, null));
+            appearance.Marks.Add(new FacialMark(code, injury.DisplayText, .2 + rng.NextDouble() * .6, .18 + rng.NextDouble() * .62, .03 + rng.NextDouble() * .10, true));
         }
+    }
+
+    public IReadOnlyDictionary<string, double> BlendShapeWeights(Npc npc)
+    {
+        var g = GetOrCreate(npc);
+        var a = AppearanceFor(npc);
+        return new Dictionary<string, double>
+        {
+            ["face_width"] = g.FaceWidth, ["jaw_width"] = g.JawWidth, ["jaw_length"] = g.JawLength,
+            ["cheekbone_height"] = g.CheekboneHeight, ["cheekbone_width"] = g.CheekboneWidth,
+            ["nose_width"] = g.NoseWidth, ["nose_length"] = g.NoseLength, ["nose_bridge"] = g.NoseBridge,
+            ["eye_size"] = g.EyeSize, ["eye_spacing"] = g.EyeSpacing, ["eye_tilt"] = g.EyeTilt,
+            ["brow_height"] = g.BrowHeight, ["lip_fullness"] = g.LipFullness, ["chin_projection"] = g.ChinProjection,
+            ["ear_size"] = g.EarSize, ["age_wrinkles"] = a.WrinkleAmount, ["facial_weight"] = a.FacialWeight
+        };
     }
 
     private static double Bell(Random rng) => Math.Clamp(.5 + NextGaussian(rng) * .16, 0, 1);
@@ -117,9 +155,8 @@ public sealed class PortraitGeneticsSystem
     }
     private static int HashSeed(Guid id, Guid? secondary)
     {
-        var bytes = id.ToByteArray();
         var h = 17;
-        foreach (var b in bytes) h = unchecked(h * 31 + b);
+        foreach (var b in id.ToByteArray()) h = unchecked(h * 31 + b);
         if (secondary is Guid s) foreach (var b in s.ToByteArray()) h = unchecked(h * 31 + b);
         return h;
     }
