@@ -33,13 +33,15 @@ public sealed class AppearancePerceptionSystem
 
     public AppearanceImpression Observe(WorldState world, PortraitGeneticsSystem portraits, Npc observer, Npc subject)
     {
+        if (observer.CurrentLocationId != subject.CurrentLocationId)
+            throw new InvalidOperationException("Observer and subject must be co-located for a direct appearance impression.");
         if (!world.Locations.TryGetValue(observer.CurrentLocationId, out var location))
             throw new InvalidOperationException("Observer location is missing.");
 
         portraits.UpdateVisibleAge(subject, world.Clock);
         var g = portraits.GetOrCreate(subject);
         var a = portraits.AppearanceFor(subject);
-        var appeal = PerceivedAppeal(observer, subject, g, a, world);
+        var appeal = PerceivedAppeal(observer, subject, g, a);
         var memorability = Math.Clamp(PortraitGeneticsSystem.StructuralDistinctiveness(g) * .48 + Math.Abs(appeal - .5) * .42 + g.FacialAsymmetry * .10, 0, 1);
         var impression = new AppearanceImpression(observer.Id, subject.Id, world.Clock.Day, appeal, memorability, location.Region);
         impressions.Add(impression);
@@ -52,7 +54,7 @@ public sealed class AppearancePerceptionSystem
         return impression;
     }
 
-    public double PerceivedAppeal(Npc observer, Npc subject, PortraitGenome g, PortraitAppearanceState a, WorldState world)
+    public double PerceivedAppeal(Npc observer, Npc subject, PortraitGenome g, PortraitAppearanceState a)
     {
         // Personal preferences are deterministic and vary by observer.
         var preferredAdiposity = .27 + Unit(observer.Id, 11) * .48;
