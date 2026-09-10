@@ -26,7 +26,6 @@ public sealed class PortraitGenome
     public double FrecklePotential { get; set; }
     public double ScarTendency { get; set; }
     public int HairStyleSeed { get; set; }
-
     public PortraitGenome Clone() => (PortraitGenome)MemberwiseClone();
 }
 
@@ -49,6 +48,17 @@ public sealed class PortraitGeneticsSystem
     private readonly Dictionary<Guid, PortraitGenome> genomes = new();
     private readonly Dictionary<Guid, PortraitAppearanceState> appearances = new();
 
+    public void InitializeWorld(WorldState world)
+    {
+        // Founders first, then replace children with inherited genomes when both parents are known.
+        foreach (var npc in world.Npcs.Values) GetOrCreate(npc);
+        foreach (var child in world.Npcs.Values.Where(n => n.ParentIds.Count >= 2))
+        {
+            if (!world.Npcs.TryGetValue(child.ParentIds[0], out var a) || !world.Npcs.TryGetValue(child.ParentIds[1], out var b)) continue;
+            Inherit(child, a, b);
+        }
+    }
+
     public PortraitGenome GetOrCreate(Npc npc)
     {
         if (genomes.TryGetValue(npc.Id, out var existing)) return existing;
@@ -67,14 +77,23 @@ public sealed class PortraitGeneticsSystem
 
     public PortraitGenome CreateFounder(Guid npcId, Guid? householdId = null)
     {
-        var rng = new Random(HashSeed(npcId, householdId));
+        var individual = new Random(HashSeed(npcId, householdId));
+        var family = householdId is Guid h ? new Random(HashSeed(h, null)) : null;
+        double Trait()
+        {
+            var personal = Bell(individual);
+            if (family is null) return personal;
+            // Household resemblance is deliberately subtle. Explicit parentage uses true two-parent inheritance below.
+            var familial = Bell(family);
+            return Math.Clamp(personal * .72 + familial * .28, 0, 1);
+        }
         return new PortraitGenome
         {
-            FaceWidth = Bell(rng), JawWidth = Bell(rng), JawLength = Bell(rng), CheekboneHeight = Bell(rng), CheekboneWidth = Bell(rng),
-            NoseWidth = Bell(rng), NoseLength = Bell(rng), NoseBridge = Bell(rng), EyeSize = Bell(rng), EyeSpacing = Bell(rng), EyeTilt = Bell(rng),
-            BrowHeight = Bell(rng), LipFullness = Bell(rng), ChinProjection = Bell(rng), EarSize = Bell(rng), SkinTone = Bell(rng),
-            HairPigment = Bell(rng), EyePigment = Bell(rng), HairWave = Bell(rng), HairDensity = Bell(rng), FacialHairPotential = Bell(rng),
-            FrecklePotential = Bell(rng), ScarTendency = Bell(rng), HairStyleSeed = rng.Next()
+            FaceWidth = Trait(), JawWidth = Trait(), JawLength = Trait(), CheekboneHeight = Trait(), CheekboneWidth = Trait(),
+            NoseWidth = Trait(), NoseLength = Trait(), NoseBridge = Trait(), EyeSize = Trait(), EyeSpacing = Trait(), EyeTilt = Trait(),
+            BrowHeight = Trait(), LipFullness = Trait(), ChinProjection = Trait(), EarSize = Trait(), SkinTone = Trait(),
+            HairPigment = Trait(), EyePigment = Trait(), HairWave = Trait(), HairDensity = Trait(), FacialHairPotential = Trait(),
+            FrecklePotential = Trait(), ScarTendency = Trait(), HairStyleSeed = individual.Next()
         };
     }
 
