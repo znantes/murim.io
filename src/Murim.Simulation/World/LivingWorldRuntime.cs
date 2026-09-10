@@ -15,12 +15,25 @@ public sealed class LivingWorldRuntime
     public CareerProgressionSystem Careers { get; } = new();
     public RoutineSystem Routines { get; } = new();
     public DragonPhoenixTournamentSystem DragonPhoenix { get; }
+    public InstitutionDomainSystem InstitutionDomains { get; } = new();
+    public SettlementDistrictSystem Districts { get; }
+    public WorldIllustrationCatalog Illustrations { get; }
 
     public LivingWorldRuntime(WorldState world, GameContent content, WorldSimulationEngine baseEngine, int seed)
     {
         World = world; Content = content; BaseEngine = baseEngine;
         Injuries = new InjurySystem(seed + 401); Martial = new MartialProgressionSystem(seed + 403); Techniques = new TechniqueMasterySystem(seed + 409);
         EconomyEcology = new EconomyEcologySystem(seed + 419); DragonPhoenix = new DragonPhoenixTournamentSystem(seed + 421);
+        Districts = new SettlementDistrictSystem(seed + 431);
+        Illustrations = new WorldIllustrationCatalog(seed + 433);
+        RebuildSpatialCatalogs();
+    }
+
+    public void RebuildSpatialCatalogs()
+    {
+        InstitutionDomains.BuildAll(World);
+        Districts.BuildAll(World);
+        Illustrations.BuildAll(World, Districts, InstitutionDomains);
     }
 
     public void AdvanceMinutes(int minutes)
