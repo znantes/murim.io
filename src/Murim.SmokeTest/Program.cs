@@ -53,7 +53,6 @@ var host = world.Locations.Values.First();
 var gathering = runtime.DragonPhoenix.Schedule(world, host.Id, 120, 12);
 Require(world.Tournaments.ContainsKey(gathering.Id) && gathering.ArchetypeCode == "dragon_phoenix_gathering", "Dragon/Phoenix tournament scheduling failed.");
 
-// Portraits must be deterministic, and true parentage must influence descendants instead of assigning unrelated faces.
 var portraitsA = new PortraitGeneticsSystem();
 var portraitsB = new PortraitGeneticsSystem();
 portraitsA.InitializeWorld(world);
@@ -74,7 +73,6 @@ if (familyChild is not null)
     Require(childFace.FaceWidth >= parentalMin && childFace.FaceWidth <= parentalMax, "Child portrait should remain plausibly related to parental facial traits.");
 }
 
-// Martial generation names are emergent from cohort outcomes, and regions may remember them differently.
 var generations = new MartialGenerationSystem();
 var sampleBirthYear = world.Npcs.Values.Select(n => (int)Math.Floor((n.Identity.BirthDay - 1) / 365.0) + 1).GroupBy(y => y).OrderByDescending(g => g.Count()).First().Key;
 var generation = generations.Evaluate(world, sampleBirthYear, 12);
@@ -83,6 +81,7 @@ var regionalGenerationName = generations.NameForRegion(generation, "Plaine centr
 Require(!string.IsNullOrWhiteSpace(regionalGenerationName), "Martial generation must support regional historical names.");
 
 AppearanceSmokeChecks.Run(world);
+DeepWorldSmokeChecks.Run(world, content.Techniques);
 ContentValidator.Validate(content);
 WorldIntegrity.NormalizeAndValidate(world);
 
