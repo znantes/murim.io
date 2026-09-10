@@ -66,13 +66,13 @@ public partial class CharacterVisualView : Control
         DrawLeg(BodySide.Left, cx - hips * .42f, torsoBottom, h * .76f, h * .89f, floor, cloth, skin, outline);
         DrawLeg(BodySide.Right, cx + hips * .42f, torsoBottom, h * .76f, h * .89f, floor, cloth, skin, outline);
 
-        var torso = new PackedVector2Array(new[]
+        var torso = new[]
         {
             new Vector2(cx - shoulders, torsoTop), new Vector2(cx + shoulders, torsoTop),
             new Vector2(cx + hips, torsoBottom), new Vector2(cx - hips, torsoBottom)
-        });
+        };
         DrawColoredPolygon(torso, cloth);
-        DrawPolyline(new PackedVector2Array(new[] { torso[0], torso[1], torso[2], torso[3], torso[0] }), outline, compact ? 1.1f : 2f, true);
+        DrawPolyline(new[] { torso[0], torso[1], torso[2], torso[3], torso[0] }, outline, compact ? 1.1f : 2f, true);
         var sashY = Mathf.Lerp(torsoTop, torsoBottom, .63f);
         DrawLine(new Vector2(cx - hips, sashY), new Vector2(cx + hips, sashY), cloth.Lightened(.18f), compact ? 2 : 4, true);
 
@@ -143,7 +143,7 @@ public partial class CharacterVisualView : Control
         var eyeY = head.Y - r * .06f;
         var eyeGap = r * (float)(.28 + genome.EyeSpacing * .16);
         var eyeR = r * (float)(.055 + genome.EyeSize * .035);
-        var eyes = Color.Lerp(new Color("403730"), new Color("718087"), (float)genome.EyePigment * .34f);
+        var eyes = new Color("403730").Lerp(new Color("718087"), (float)genome.EyePigment * .34f);
         DrawCircle(new Vector2(head.X - eyeGap - asym, eyeY), eyeR, eyes);
         DrawCircle(new Vector2(head.X + eyeGap + asym * .35f, eyeY + asym * .10f), eyeR, eyes);
         var browY = eyeY - r * .16f;
@@ -201,14 +201,14 @@ public partial class CharacterVisualView : Control
         var light = new Color("f1d5bd");
         var medium = new Color("c78d6b");
         var deep = new Color("80523f");
-        var baseColor = tone < .52 ? Color.Lerp(light, medium, (float)(tone / .52)) : Color.Lerp(medium, deep, (float)((tone - .52) / .48));
-        return Color.Lerp(baseColor, new Color("e8e0dc"), (float)Math.Clamp(pallor * .42, 0, .42));
+        var baseColor = tone < .52 ? light.Lerp(medium, (float)(tone / .52)) : medium.Lerp(deep, (float)((tone - .52) / .48));
+        return baseColor.Lerp(new Color("e8e0dc"), (float)Math.Clamp(pallor * .42, 0, .42));
     }
 
     private static Color HairColor(double pigment, double grey)
     {
-        var dark = Color.Lerp(new Color("181616"), new Color("49352d"), (float)Math.Clamp(pigment * .45, 0, .45));
-        return Color.Lerp(dark, new Color("b8b8b3"), (float)Math.Clamp(grey, 0, 1));
+        var dark = new Color("181616").Lerp(new Color("49352d"), (float)Math.Clamp(pigment * .45, 0, .45));
+        return dark.Lerp(new Color("b8b8b3"), (float)Math.Clamp(grey, 0, 1));
     }
 
     private static Color ClothingColor(Guid id)
