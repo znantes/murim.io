@@ -83,6 +83,7 @@ Require(!string.IsNullOrWhiteSpace(regionalGenerationName), "Martial generation 
 AppearanceSmokeChecks.Run(world);
 DeepWorldSmokeChecks.Run(world, content.Techniques);
 InstitutionDomainSmokeChecks.Run(world);
+UrbanVisualSmokeChecks.Run(runtime);
 ContentValidator.Validate(content);
 WorldIntegrity.NormalizeAndValidate(world);
 
