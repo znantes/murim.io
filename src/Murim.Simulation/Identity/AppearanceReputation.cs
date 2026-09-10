@@ -107,8 +107,14 @@ public sealed class AppearancePerceptionSystem
         // It is limited to adult women by the requested setting trope and requires broad independent recognition.
         if (subject.Identity.Sex == Sex.Female && average >= .87 && record.IndependentWitnesses >= 36 && record.Regions.Count >= 3)
         {
-            var legendaryCount = renown.Values.Count(x => x.Tier == BeautyRenownTier.Legendary && x.SubjectNpcId != subject.Id);
-            if (legendaryCount < MaxLegendaryBeauties)
+            var legendaryLivingCount = renown.Values.Count(x =>
+                x.Tier == BeautyRenownTier.Legendary &&
+                x.SubjectNpcId != subject.Id &&
+                world.Npcs.TryGetValue(x.SubjectNpcId, out var known) &&
+                known.IsAlive &&
+                known.Identity.Sex == Sex.Female &&
+                known.AgeYears(world.Clock) >= 18);
+            if (legendaryLivingCount < MaxLegendaryBeauties)
             {
                 record.Tier = BeautyRenownTier.Legendary;
                 record.Epithet ??= GenerateEpithet(subject, world);
