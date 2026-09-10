@@ -53,6 +53,35 @@ var host = world.Locations.Values.First();
 var gathering = runtime.DragonPhoenix.Schedule(world, host.Id, 120, 12);
 Require(world.Tournaments.ContainsKey(gathering.Id) && gathering.ArchetypeCode == "dragon_phoenix_gathering", "Dragon/Phoenix tournament scheduling failed.");
 
+// Portraits must be deterministic, and true parentage must influence descendants instead of assigning unrelated faces.
+var portraitsA = new PortraitGeneticsSystem();
+var portraitsB = new PortraitGeneticsSystem();
+portraitsA.InitializeWorld(world);
+portraitsB.InitializeWorld(world);
+var faceA = portraitsA.GetOrCreate(player);
+var faceB = portraitsB.GetOrCreate(player);
+Require(Math.Abs(faceA.FaceWidth - faceB.FaceWidth) < 0.0000001 && Math.Abs(faceA.NoseWidth - faceB.NoseWidth) < 0.0000001, "Portrait genome must be deterministic for the same NPC.");
+var familyChild = world.Npcs.Values.FirstOrDefault(n => n.ParentIds.Count >= 2 && world.Npcs.ContainsKey(n.ParentIds[0]) && world.Npcs.ContainsKey(n.ParentIds[1]));
+if (familyChild is not null)
+{
+    var parentA = world.Npcs[familyChild.ParentIds[0]];
+    var parentB = world.Npcs[familyChild.ParentIds[1]];
+    var childFace = portraitsA.Inherit(familyChild, parentA, parentB);
+    var p1 = portraitsA.GetOrCreate(parentA);
+    var p2 = portraitsA.GetOrCreate(parentB);
+    var parentalMin = Math.Min(p1.FaceWidth, p2.FaceWidth) - .16;
+    var parentalMax = Math.Max(p1.FaceWidth, p2.FaceWidth) + .16;
+    Require(childFace.FaceWidth >= parentalMin && childFace.FaceWidth <= parentalMax, "Child portrait should remain plausibly related to parental facial traits.");
+}
+
+// Martial generation names are emergent from cohort outcomes, and regions may remember them differently.
+var generations = new MartialGenerationSystem();
+var sampleBirthYear = world.Npcs.Values.Select(n => (int)Math.Floor((n.Identity.BirthDay - 1) / 365.0) + 1).GroupBy(y => y).OrderByDescending(g => g.Count()).First().Key;
+var generation = generations.Evaluate(world, sampleBirthYear, 12);
+Require(!string.IsNullOrWhiteSpace(generation.CanonicalName), "Martial generation must receive an emergent name.");
+var regionalGenerationName = generations.NameForRegion(generation, "Plaine centrale", world.Seed);
+Require(!string.IsNullOrWhiteSpace(regionalGenerationName), "Martial generation must support regional historical names.");
+
 ContentValidator.Validate(content);
 WorldIntegrity.NormalizeAndValidate(world);
 
@@ -60,3 +89,4 @@ Console.WriteLine("MURIM SMOKE TEST OK");
 Console.WriteLine($"Techniques={content.Techniques.Count}; Divine={content.Techniques.Count(t => t.Rarity == Rarity.Divine)}; Monsters={content.Monsters.Count}; Pills={content.Pills.Count}; Artifacts={content.Artifacts.Count}");
 Console.WriteLine($"NPCs={world.Npcs.Count}; Day={world.Clock.Day}; Events={world.Events.Count}; Rumors={world.Rumors.Count}; Goals={world.Goals.Count}");
 Console.WriteLine($"Rare perfected={rarePower:0.###} > Mythic learned={mythicPower:0.###}");
+Console.WriteLine($"Generation={generation.CanonicalName}; Regional={regionalGenerationName}");
