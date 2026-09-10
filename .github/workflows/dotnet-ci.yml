@@ -1,0 +1,41 @@
+name: Murim .NET CI
+
+on:
+  push:
+    branches:
+      - main
+      - feat/living-murim-foundation
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore simulation
+        run: dotnet restore src/Murim.SmokeTest/Murim.SmokeTest.csproj
+      - name: Build simulation
+        run: dotnet build src/Murim.SmokeTest/Murim.SmokeTest.csproj --configuration Release --no-restore
+      - name: Run deterministic smoke test
+        run: dotnet run --project src/Murim.SmokeTest/Murim.SmokeTest.csproj --configuration Release --no-build
+      - name: Restore Godot client
+        run: dotnet restore client/MurimGame/MurimGame.csproj
+      - name: Build Godot client
+        run: dotnet build client/MurimGame/MurimGame.csproj --configuration Release --no-restore
+      - name: Download Godot 4.7.2 .NET editor
+        run: |
+          curl -L --fail --retry 3 -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_mono_linux_x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.2-stable_mono_linux_x86_64/Godot_v4.7.2-stable_mono_linux.x86_64
+      - name: Import project headlessly
+        run: /tmp/godot/Godot_v4.7.2-stable_mono_linux_x86_64/Godot_v4.7.2-stable_mono_linux.x86_64 --headless --editor --path client/MurimGame --quit-after 3
+      - name: Launch game headlessly
+        run: /tmp/godot/Godot_v4.7.2-stable_mono_linux_x86_64/Godot_v4.7.2-stable_mono_linux.x86_64 --headless --path client/MurimGame --quit-after 3
